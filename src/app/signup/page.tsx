@@ -4,6 +4,10 @@
 export const runtime = "edge";
 
 
+
+export const runtime = "edge";
+
+
 import { useState } from "react";
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";

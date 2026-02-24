@@ -1,5 +1,9 @@
 "use client";
 
+
+export const runtime = "edge";
+
+
 import { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { motion } from "framer-motion";

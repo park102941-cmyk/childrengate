@@ -4,6 +4,10 @@
 export const runtime = "edge";
 
 
+
+export const runtime = "edge";
+
+
 import { useState } from "react";
 import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";

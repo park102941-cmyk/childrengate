@@ -1,5 +1,9 @@
 "use client";
 
+
+export const runtime = "edge";
+
+
 import { useState, useMemo } from "react";
 import { Search, Car, UserCheck, Clock, CheckCircle2, ChevronRight, X, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";

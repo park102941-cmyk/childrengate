@@ -1,5 +1,9 @@
 "use client";
 
+
+export const runtime = "edge";
+
+
 import { useState, useEffect } from "react";
 import { Database, CheckCircle, RefreshCcw, DownloadCloud, ExternalLink, AlertTriangle, Play, FileSpreadsheet } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";

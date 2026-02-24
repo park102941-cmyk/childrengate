@@ -4,6 +4,10 @@
 export const runtime = "edge";
 
 
+
+export const runtime = "edge";
+
+
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";

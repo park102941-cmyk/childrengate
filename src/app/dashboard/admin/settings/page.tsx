@@ -1,5 +1,9 @@
 "use client";
 
+
+export const runtime = "edge";
+
+
 import { useState } from "react";
 import { useLanguage } from "@/context/LanguageContext";
 import { Building2, Mail, Phone, BellRing, MessageSquare, ShieldCheck, Check, Printer, CheckCircle2 } from "lucide-react";

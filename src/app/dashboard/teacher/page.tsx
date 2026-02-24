@@ -1,5 +1,9 @@
 "use client";
 
+
+export const runtime = "edge";
+
+
 import { useState, useEffect } from "react";
 import { collection, query, where, onSnapshot, updateDoc, doc, Timestamp, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
