@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import { NextResponse } from 'next/server';
 import { appendSheetData } from '@/lib/googleSheets';
 import { format } from 'date-fns';
