@@ -4,24 +4,16 @@ import { Firestore, getFirestore } from "firebase/firestore";
 import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: "AIzaSyDJm5vG3oeZUUMlVZXJqxkxo_dWE9SgPCc",
+  authDomain: "schedulo-b0491.firebaseapp.com",
+  projectId: "schedulo-b0491",
+  storageBucket: "schedulo-b0491.firebasestorage.app",
+  messagingSenderId: "1067549095640",
+  appId: "1:1067549095640:web:822a85c7d3b16ead2cc9ad",
 };
 
-const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.NEXT_PUBLIC_FIREBASE_API_KEY !== 'your_api_key';
+const isFirebaseConfigured = true;
 
-if (typeof window !== 'undefined') {
-  console.log("Firebase Config Check:", {
-    hasKey: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    keyPrefix: process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.substring(0, 5),
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    isConfigured: isFirebaseConfigured
-  });
-}
 
 // Initialize Firebase only if config is valid
 let app: FirebaseApp | undefined;
