@@ -1,6 +1,6 @@
-"use client";
-
 import dynamic from "next/dynamic";
+
+export const runtime = 'edge';
 
 // Disable SSR entirely for this page to avoid Edge Runtime / Firebase SDK conflicts
 const ParentPortalClient = dynamic(() => import("./ParentPortalClient"), {
@@ -22,3 +22,4 @@ const ParentPortalClient = dynamic(() => import("./ParentPortalClient"), {
 export default function ParentPortalPage() {
   return <ParentPortalClient />;
 }
+

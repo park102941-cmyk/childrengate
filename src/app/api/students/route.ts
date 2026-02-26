@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 
+export const runtime = 'edge';
+
+
 // NOTE: This endpoint serves the admin student list.
 // Currently returns an empty array (students are managed client-side via Firestore realtime).
 // To populate with real data, integrate Firebase Admin SDK here.
