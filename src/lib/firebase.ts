@@ -4,7 +4,7 @@ import { Firestore, getFirestore } from "firebase/firestore";
 import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBbwGPW6lwkgRr3vKtFp1LgTX0VUZBtCJY",
+  apiKey: "AIzaSyDJm5vG3oeZUUMlVZXJqxkxo_dWE9SgPCc",
   authDomain: "schedulo-b0491.firebaseapp.com",
   projectId: "schedulo-b0491",
   storageBucket: "schedulo-b0491.firebasestorage.app",
