@@ -1,3 +1,5 @@
+"use client";
+
 import dynamic from "next/dynamic";
 
 export const runtime = 'edge';
@@ -22,4 +24,5 @@ const ParentPortalClient = dynamic(() => import("./ParentPortalClient"), {
 export default function ParentPortalPage() {
   return <ParentPortalClient />;
 }
+
 
