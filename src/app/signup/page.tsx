@@ -8,7 +8,8 @@
 
 
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
@@ -19,7 +20,16 @@ import { ShieldCheck, Mail, Lock, User, Building2, ArrowRight, Phone, Baby, Glob
 import { useLanguage } from "@/context/LanguageContext";
 
 export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <SignupContent />
+    </Suspense>
+  );
+}
+
+function SignupContent() {
   const { t, language, setLanguage } = useLanguage();
+  const searchParams = useSearchParams();
   const [userType, setUserType] = useState<"parent" | "institution">("parent");
   const [formData, setFormData] = useState({
     name: "",
@@ -29,6 +39,17 @@ export default function SignupPage() {
     instCode: "",
     contact: ""
   });
+
+  useEffect(() => {
+    const code = searchParams.get("code");
+    const type = searchParams.get("type");
+    if (code) {
+      setFormData(prev => ({ ...prev, instCode: code }));
+    }
+    if (type === "institution") {
+      setUserType("institution");
+    }
+  }, [searchParams]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -172,8 +193,8 @@ export default function SignupPage() {
           className="bg-white rounded-[40px] p-10 md:p-16 shadow-2xl shadow-black/5 border border-black/5"
         >
           <div className="text-center mb-12">
-            <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-primary/20 text-white">
-              <ShieldCheck size={32} />
+            <div className="w-16 h-16 bg-white overflow-hidden rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-black/5 border border-black/5">
+              <img src="/children_gate_logo.png" alt="Children Gate Logo" className="w-full h-full object-contain p-2" />
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight text-black mb-3">{t.auth.signupTitle}</h1>
             <p className="text-black/60 font-medium">{t.auth.signupSubtitle}</p>
@@ -336,9 +357,16 @@ export default function SignupPage() {
           </form>
         </motion.div>
 
-        <p className="text-center text-black/40 text-xs mt-12">
-          &copy; 2026 Children Gate. Smart and Safe Mobility for Children.
-        </p>
+        <div className="mt-12 flex flex-col items-center gap-4">
+          <div className="flex items-center gap-6 text-[10px] font-black text-black/60 uppercase tracking-widest">
+            <Link href="/privacy" className="hover:text-primary transition-colors">{t.common.privacy}</Link>
+            <Link href="/terms" className="hover:text-primary transition-colors">{t.common.terms}</Link>
+            <a href="mailto:onchurchtx@gmail.com" className="hover:text-primary transition-colors">{t.common.contact}</a>
+          </div>
+          <p className="text-center text-black/40 text-[10px] font-bold tracking-tight">
+            &copy; 2026 Children Gate. All Rights Reserved.
+          </p>
+        </div>
       </div>
     </div>
   );

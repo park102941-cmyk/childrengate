@@ -299,20 +299,20 @@ export default function LandingPage() {
 
       {/* Final CTA */}
       <section className="section-padding text-center">
-        <div className="bg-primary/5 rounded-[48px] py-20 px-6 md:px-20 overflow-hidden relative">
+        <div className="bg-primary/5 rounded-[48px] py-20 px-6 md:px-20 overflow-hidden relative border border-primary/10">
           <div className="relative z-10">
-            <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-8">
+            <h2 className="text-4xl md:text-6xl font-black tracking-tight mb-8 text-black">
               {t.cta.title}
             </h2>
-            <p className="text-xl text-black/60 mb-12 max-w-2xl mx-auto font-normal">
+            <p className="text-xl text-black/80 mb-12 max-w-2xl mx-auto font-bold">
               {t.cta.subtitle}
             </p>
-            <Link href="/signup" className="apple-button-primary inline-block px-12 py-4 text-lg">
+            <Link href="/signup" className="apple-button-primary inline-block px-12 py-5 text-lg shadow-2xl shadow-primary/30">
               {t.common.start}
             </Link>
           </div>
-          <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 bg-primary/10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-primary/10 rounded-full blur-3xl"></div>
+          <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 bg-primary/10 rounded-full blur-3xl opacity-50"></div>
+          <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-primary/10 rounded-full blur-3xl opacity-50"></div>
         </div>
       </section>
 
@@ -322,8 +322,8 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
             <div className="space-y-6 col-span-1 md:col-span-2">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-                  <span className="text-white font-bold text-base">C</span>
+                <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-black/5 shadow-sm">
+                  <img src="/children_gate_logo.png" alt="Children Gate Logo" className="w-full h-full object-contain p-1.5" />
                 </div>
                 <span className="font-bold text-xl tracking-tight">Children Gate</span>
               </div>
@@ -347,7 +347,7 @@ export default function LandingPage() {
             <div className="space-y-6">
               <h4 className="font-bold text-sm uppercase tracking-widest text-black/30">Support</h4>
               <ul className="space-y-4 text-sm font-bold">
-                <li><Link href="#" className="text-black/60 hover:text-primary transition-colors">{t.common.contact}</Link></li>
+                <li><a href="mailto:onchurchtx@gmail.com" className="text-black/60 hover:text-primary transition-colors">{t.common.contact}</a></li>
                 <li><Link href="/dashboard/admin/guide" className="text-black/60 hover:text-primary transition-colors">Admin Guide</Link></li>
               </ul>
             </div>

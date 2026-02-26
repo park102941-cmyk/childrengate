@@ -10,8 +10,8 @@ export const translations = {
       privacy: "개인정보 처리방침",
       terms: "이용약관",
       contact: "문의하기",
-      representative: "대표자: [성함]",
-      email: "admin@childrengate.com",
+      representative: "대표자: 심재성",
+      email: "onchurchtx@gmail.com",
       copyright: "Copyright © 2026 Children Gate. All Rights Reserved."
     },
     legal: {
@@ -118,7 +118,14 @@ export const translations = {
       noAccount: "계정이 없으신가요?",
       errorSignup: "가입 중 오류가 발생했습니다.",
       errorLogin: "이메일 또는 비밀번호가 올바르지 않습니다.",
-      googleLogin: "Google 계정으로 계속하기"
+      googleLogin: "Google 계정으로 계속하기",
+      forgotPassword: "비밀번호를 잊으셨나요?",
+      resetPasswordTitle: "비밀번호 재설정",
+      resetPasswordSubtitle: "이메일 주소를 입력하시면 비밀번호를 재설정할 수 있는 링크를 보내드립니다.",
+      sendResetLink: "재설정 링크 보내기",
+      resetLinkSent: "이메일이 전송되었습니다. 편지함을 확인해 주세요.",
+      backToLogin: "로그인으로 돌아가기",
+      errorReset: "이메일을 보내는 중 오류가 발생했습니다."
     },
     dashboard: {
       admin: {
@@ -246,8 +253,8 @@ export const translations = {
       privacy: "Privacy Policy",
       terms: "Terms of Service",
       contact: "Contact Us",
-      representative: "Representative: [Name]",
-      email: "admin@childrengate.com",
+      representative: "Representative: Jaesung Sim",
+      email: "onchurchtx@gmail.com",
       copyright: "Copyright © 2026 Children Gate. All Rights Reserved."
     },
     legal: {
@@ -354,7 +361,14 @@ export const translations = {
       noAccount: "Don't have an account?",
       errorSignup: "An error occurred during signup.",
       errorLogin: "Incorrect email or password.",
-      googleLogin: "Continue with Google"
+      googleLogin: "Continue with Google",
+      forgotPassword: "Forgot password?",
+      resetPasswordTitle: "Reset Password",
+      resetPasswordSubtitle: "Enter your email address to receive a password reset link.",
+      sendResetLink: "Send Reset Link",
+      resetLinkSent: "Reset email sent. Please check your inbox.",
+      backToLogin: "Back to Login",
+      errorReset: "Error sending password reset email."
     },
     dashboard: {
       admin: {

@@ -9,13 +9,13 @@
 
 
 import { useState } from "react";
-import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ShieldCheck, Mail, Lock, ArrowRight, Globe } from "lucide-react";
+import { ShieldCheck, Mail, Lock, ArrowRight, Globe, X, CheckCircle2 } from "lucide-react";
 
 import { useLanguage } from "@/context/LanguageContext";
 
@@ -29,6 +29,9 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showReset, setShowReset] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -73,6 +76,22 @@ export default function LoginPage() {
       console.error("Login error:", err);
       const errorMessage = err instanceof Error ? err.message : t.auth.errorLogin;
       setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      if (!auth) throw new Error("Firebase auth not ready");
+      await sendPasswordResetEmail(auth, resetEmail);
+      setResetSent(true);
+    } catch (err: unknown) {
+      console.error("Reset password error:", err);
+      setError(t.auth.errorReset);
     } finally {
       setLoading(false);
     }
@@ -155,8 +174,8 @@ export default function LoginPage() {
           className="bg-white rounded-[40px] p-10 md:p-12 shadow-2xl shadow-black/5 border border-black/5"
         >
           <div className="text-center mb-10">
-            <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-primary/20 text-white">
-              <ShieldCheck size={32} />
+            <div className="w-16 h-16 bg-white overflow-hidden rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-black/5 border border-black/5">
+              <img src="/children_gate_logo.png" alt="Children Gate Logo" className="w-full h-full object-contain p-2" />
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight text-black mb-3">{t.auth.loginTitle}</h1>
             <p className="text-black/60 font-medium">{t.auth.loginSubtitle}</p>
@@ -209,17 +228,30 @@ export default function LoginPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-2 px-1">
-                <input
-                  type="checkbox"
-                  id="rememberMe"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 text-primary bg-slate-50 border-black/10 rounded focus:ring-primary focus:ring-2 accent-primary cursor-pointer"
-                />
-                <label htmlFor="rememberMe" className="text-sm font-bold text-black/60 cursor-pointer select-none">
-                  {t.auth.rememberMe || "자동 로그인 (스마트폰 기억하기)"}
-                </label>
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="rememberMe"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 text-primary bg-slate-50 border-black/10 rounded focus:ring-primary focus:ring-2 accent-primary cursor-pointer"
+                  />
+                  <label htmlFor="rememberMe" className="text-sm font-bold text-black/60 cursor-pointer select-none">
+                    {t.auth.rememberMe || "자동 로그인 (스마트폰 기억하기)"}
+                  </label>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setShowReset(true);
+                    setResetEmail(formData.email);
+                    setError("");
+                  }}
+                  className="text-sm font-bold text-primary hover:underline underline-offset-4"
+                >
+                  {t.auth.forgotPassword}
+                </button>
               </div>
             </div>
 
@@ -266,10 +298,95 @@ export default function LoginPage() {
           </form>
         </motion.div>
 
-        <p className="text-center text-black/40 text-xs mt-12">
-          &copy; 2026 Children Gate. Smart and Safe Mobility for Children.
-        </p>
+        <div className="mt-12 flex flex-col items-center gap-4">
+          <div className="flex items-center gap-6 text-[10px] font-black text-black/60 uppercase tracking-widest">
+            <Link href="/privacy" className="hover:text-primary transition-colors">{t.common.privacy}</Link>
+            <Link href="/terms" className="hover:text-primary transition-colors">{t.common.terms}</Link>
+            <a href="mailto:onchurchtx@gmail.com" className="hover:text-primary transition-colors">{t.common.contact}</a>
+          </div>
+          <p className="text-center text-black/40 text-[10px] font-bold tracking-tight">
+            &copy; 2026 Children Gate. All Rights Reserved.
+          </p>
+        </div>
       </div>
+
+      {/* Password Reset Modal */}
+      {showReset && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-6 bg-black/20 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white w-full max-w-sm rounded-[44px] p-8 md:p-10 shadow-2xl relative border border-black/5"
+          >
+            <button 
+              onClick={() => {
+                setShowReset(false);
+                setResetSent(false);
+                setError("");
+              }}
+              className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 text-black/40 hover:bg-gray-100 transition-all"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <Lock size={32} />
+              </div>
+              <h2 className="text-2xl font-black text-black mb-2">{t.auth.resetPasswordTitle}</h2>
+              <p className="text-sm font-bold text-black/50 leading-relaxed">
+                {resetSent ? t.auth.resetLinkSent : t.auth.resetPasswordSubtitle}
+              </p>
+            </div>
+
+            {!resetSent ? (
+               <form onSubmit={handleResetPassword} className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-black ml-1 flex items-center gap-2">
+                      <Mail size={14} className="text-primary" /> {t.auth.email}
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="admin@institution.com"
+                      className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-black/20 text-black font-bold"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                    />
+                  </div>
+                  
+                  {error && (
+                    <p className="text-error text-xs font-bold text-center bg-error/5 py-3 rounded-xl">
+                      {error}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-black text-white py-5 rounded-2xl text-base font-black hover:bg-black/90 transition-all shadow-xl shadow-black/10 flex items-center justify-center gap-2"
+                  >
+                    {loading ? t.auth.creating : t.auth.sendResetLink}
+                  </button>
+               </form>
+            ) : (
+              <div className="space-y-6 text-center">
+                <div className="flex justify-center">
+                   <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center">
+                      <CheckCircle2 size={32} />
+                   </div>
+                </div>
+                <button
+                  onClick={() => setShowReset(false)}
+                  className="w-full bg-black text-white py-5 rounded-2xl text-base font-black hover:bg-black/90 transition-all shadow-xl shadow-black/10"
+                >
+                  {t.auth.backToLogin}
+                </button>
+              </div>
+            )}
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

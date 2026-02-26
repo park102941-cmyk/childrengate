@@ -1,13 +1,25 @@
 "use client";
 
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Users, Settings, Database, QrCode, Car, Calendar, Printer, HelpCircle, type LucideIcon } from "lucide-react";
+import { Users, Settings, Database, QrCode, Car, Calendar, Printer, HelpCircle, Share2, Check, type LucideIcon } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
+import { useAuth } from "@/context/AuthContext";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage();
+  const { institutionId } = useAuth();
   const pathname = usePathname();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyInvite = () => {
+    if (!institutionId) return;
+    const url = `${window.location.origin}/signup?code=${institutionId}`;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -29,6 +41,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <NavItem href="/dashboard/admin/settings" icon={Settings} label={t.dashboard.admin.sidebar.settings} active={pathname.startsWith("/dashboard/admin/settings")} />
           <NavItem href="/dashboard/admin/guide" icon={HelpCircle} label="사용 가이드" active={pathname === "/dashboard/admin/guide"} />
         </nav>
+
+        <div className="mt-6 mb-6">
+          <button 
+            onClick={handleCopyInvite}
+            className="w-full flex items-center justify-between px-4 py-4 rounded-2xl bg-primary/5 border border-primary/20 text-primary hover:bg-primary/10 transition-all group"
+          >
+            <div className="flex items-center gap-3">
+              {copied ? <Check size={18} /> : <Share2 size={18} />}
+              <span className="font-bold text-sm">{copied ? "복사완료!" : "학부모 초대하기"}</span>
+            </div>
+            {!copied && <span className="text-[10px] bg-primary/10 px-1.5 py-0.5 rounded font-black uppercase">Link</span>}
+          </button>
+        </div>
 
         <div className="mt-auto pt-6 border-t border-black/5">
           <div className="flex items-center gap-3 px-2">

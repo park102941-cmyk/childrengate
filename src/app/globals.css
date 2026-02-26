@@ -65,7 +65,7 @@ body {
 }
 
 @utility sub-text {
-  @apply text-xl md:text-2xl text-black/60 mt-6 max-w-2xl mx-auto font-medium;
+  @apply text-xl md:text-2xl text-black/80 mt-6 max-w-2xl mx-auto font-bold tracking-tight;
 }
 
 

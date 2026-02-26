@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
-import { QrCode, Plus, Calendar, Clock, MessageSquare, FileIcon, ChevronRight, User, ShieldCheck, Check, Car, AlertCircle, XCircle, Timer, LogIn, LogOut, Edit2, Phone, Mail, Lock, Sparkles, TrendingUp, ImageIcon, Bot } from "lucide-react";
+import { QrCode, Plus, Calendar, Clock, MessageSquare, FileIcon, ChevronRight, User, ShieldCheck, Check, Car, AlertCircle, XCircle, Timer, LogIn, LogOut, Edit2, Phone, Mail, Lock, Sparkles, TrendingUp, ImageIcon, Bot, Share2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect } from "react";
 import { db } from "@/lib/firebase";
@@ -25,6 +25,15 @@ export default function ParentPortal() {
   const [hasDismissedInitialModal, setHasDismissedInitialModal] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
   const [membershipType, setMembershipType] = useState<"free" | "pro">("free");
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyInvite = () => {
+    const url = `${window.location.origin}/signup?code=${instId}`;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    alert("초대 링크가 복사되었습니다! 카톡이나 문자로 배우자 또는 가족에게 전달해 주세요.");
+  };
   const [showProModal, setShowProModal] = useState(false);
 
   interface Child {
@@ -246,6 +255,13 @@ export default function ParentPortal() {
             </div>
          </div>
          <div className="flex items-center gap-2">
+            <button 
+              onClick={handleCopyInvite}
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${copied ? 'bg-emerald-50 text-emerald-500' : 'bg-gray-50 text-black/30 hover:bg-primary/10 hover:text-primary'}`}
+              title="가족 초대하기"
+            >
+               {copied ? <Check size={18} /> : <Share2 size={18} />}
+            </button>
             {membershipType === "pro" && (
               <span className="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-1 rounded-full border border-amber-200 uppercase tracking-tighter">PRO</span>
             )}
@@ -304,7 +320,7 @@ export default function ParentPortal() {
                 )}
 
                 {/* 1. Main Control Panel (Drop Off / Pick Up) -- THIS IS THE PRIORITY UI */}
-                <div className="bg-white rounded-[40px] p-6 shadow-2xl border border-primary/20 bg-gradient-to-tr from-white to-primary/5 relative overflow-hidden">
+                <div className="bg-white rounded-[40px] p-6 shadow-2xl border border-primary/20 bg-linear-to-tr from-white to-primary/5 relative overflow-hidden">
                   <div className="flex items-center gap-2 mb-4 bg-white/60 p-3 rounded-2xl border border-black/5 backdrop-blur-sm">
                     <div className="w-8 h-8 bg-black rounded-lg text-white flex items-center justify-center shrink-0">
                     </div>
@@ -571,7 +587,7 @@ export default function ParentPortal() {
             initial={{ opacity: 0, y: 100, scale: 0.8 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 100, scale: 0.8 }}
-            className="fixed bottom-6 right-6 left-6 max-w-sm ml-auto bg-white rounded-[32px] shadow-[0_32px_128px_rgba(0,0,0,0.2)] z-[60] overflow-hidden border border-black/5"
+            className="fixed bottom-6 right-6 left-6 max-w-sm ml-auto bg-white rounded-[32px] shadow-[0_32px_128px_rgba(0,0,0,0.2)] z-60 overflow-hidden border border-black/5"
           >
             <div className="bg-black p-6 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -781,7 +797,7 @@ export default function ParentPortal() {
       {/* Pro Plan Modal */}
       <AnimatePresence>
         {showProModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-4">
+          <div className="fixed inset-0 z-100 flex items-center justify-center p-6 sm:p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -793,7 +809,7 @@ export default function ParentPortal() {
               initial={{ opacity: 0, y: 100, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 100, scale: 0.9 }}
-              className="bg-white w-full max-w-sm rounded-[44px] overflow-hidden shadow-2xl relative z-[110]"
+              className="bg-white w-full max-w-sm rounded-[44px] overflow-hidden shadow-2xl relative z-110"
             >
               <div className="bg-linear-to-br from-indigo-600 to-indigo-800 p-8 text-white relative">
                 <div className="absolute top-6 right-6">
