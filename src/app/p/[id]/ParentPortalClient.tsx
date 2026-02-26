@@ -11,6 +11,8 @@ import { useLanguage } from "@/context/LanguageContext";
 import { QrCode, Plus, Calendar, Clock, MessageSquare, FileIcon, ChevronRight, User, ShieldCheck, Check, Car, AlertCircle, XCircle, Timer, LogIn, LogOut, Edit2, Phone, Mail, Lock, Sparkles, TrendingUp, ImageIcon, Bot } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect } from "react";
+import { db } from "@/lib/firebase";
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from "firebase/firestore";
 
 export default function ParentPortal() {
   const { t } = useLanguage();
@@ -82,7 +84,7 @@ export default function ParentPortal() {
     alert("🚀 등교(Drop-off) 처리가 완료되었습니다!");
   };
 
-  const handleBatchPickUp = () => {
+  const handleBatchPickUp = async () => {
     // If no children selected, apply to all present.
     const targets = selectedChildren.length > 0
       ? children.filter(c => selectedChildren.includes(c.id) && c.status === "present")
@@ -93,12 +95,46 @@ export default function ParentPortal() {
       return;
     }
 
-    setChildren(children.map(c => 
-      targets.some(t => t.id === c.id) ? { ...c, status: "pickup_requested" } : c
-    ));
-    setSelectedChildren([]);
-    setMemo("");
-    alert("🚗 하교(Pick-up) 요청이 원으로 전송되었습니다!");
+    try {
+      if (!db) throw new Error("Firebase database not initialized");
+
+      for (const child of targets) {
+        // 1. Create real-time pickup request in Firestore
+        await addDoc(collection(db, "pickup_requests"), {
+          studentId: child.id,
+          studentName: child.name,
+          className: child.class,
+          parentName: "보호자", // Could be linked to actual auth user name
+          status: "pending",
+          requestTime: serverTimestamp(),
+          institutionId: instId,
+          memo: memo,
+          type: "qr_portal"
+        });
+
+        // 2. Optional: Internal reporting sync
+        fetch("/api/sync-report", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "DISMISSAL_REQUEST_CREATED",
+            studentName: child.name,
+            className: child.class,
+            timestamp: new Date().toISOString()
+          })
+        }).catch(err => console.error("Report sync failed:", err));
+      }
+
+      setChildren(children.map(c => 
+        targets.some(t => t.id === c.id) ? { ...c, status: "pickup_requested" } : c
+      ));
+      setSelectedChildren([]);
+      setMemo("");
+      alert("🚗 하교(Pick-up) 요청이 원으로 전송되었습니다!");
+    } catch (error) {
+      console.error("Error requesting pickup:", error);
+      alert("요청 중 오류가 발생했습니다.");
+    }
   };
 
   const handleUrgentAction = (id: string, action: "cancel" | "delay") => {

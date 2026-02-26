@@ -5,9 +5,11 @@
 
 
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Search, Car, UserCheck, Clock, CheckCircle2, ChevronRight, X, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { db } from "@/lib/firebase";
+import { collection, query, where, onSnapshot, updateDoc, doc, Timestamp, orderBy } from "firebase/firestore";
 
 interface DispatchStudent {
   id: string;
@@ -31,16 +33,74 @@ const initialStudents: DispatchStudent[] = [
 ];
 
 export default function DispatchDashboard() {
-  const [students, setStudents] = useState<DispatchStudent[]>(initialStudents);
+  const [students, setStudents] = useState<DispatchStudent[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState<"all" | "pickup_requested" | "released">("all");
 
-  const handleRelease = (id: string) => {
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, status: "released" } : s));
+  useEffect(() => {
+    if (!db) return;
+
+    // Listen to real-time pickup requests
+    const q = query(
+      collection(db, "pickup_requests"),
+      where("status", "in", ["pending", "approved", "completed"]),
+      orderBy("requestTime", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          name: d.studentName,
+          class: d.className,
+          grade: d.grade || "미지정",
+          parentName: d.parentName,
+          status: d.status === "pending" ? "pickup_requested" : d.status === "completed" ? "released" : "present",
+          requestTime: d.requestTime?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          photo: d.photo
+        };
+      }) as DispatchStudent[];
+      setStudents(data);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleRelease = async (id: string) => {
+    try {
+      if (!db) return;
+      await updateDoc(doc(db, "pickup_requests", id), {
+        status: "completed",
+        releasedAt: Timestamp.now()
+      });
+      
+      // Also notify reporting API
+      fetch("/api/sync-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "PICKUP_RELEASED",
+          requestId: id,
+          timestamp: new Date().toISOString()
+        })
+      }).catch(e => console.error("Report sync failed", e));
+
+    } catch (e) {
+      console.error("Error releasing student:", e);
+    }
   };
 
-  const handleCancelRelease = (id: string) => {
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, status: "pickup_requested" } : s));
+  const handleCancelRelease = async (id: string) => {
+    try {
+      if (!db) return;
+      await updateDoc(doc(db, "pickup_requests", id), {
+        status: "pending",
+        releasedAt: null
+      });
+    } catch (e) {
+      console.error("Error cancelling release:", e);
+    }
   };
 
   const filteredStudents = useMemo(() => {

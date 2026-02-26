@@ -92,51 +92,94 @@ export default function TeacherDashboard() {
       printWindow.document.write(`
         <html>
           <head>
-            <title>Sticker Print - ${request.studentName}</title>
+            <title>CG Sticker - ${request.studentName}</title>
             <style>
-              @page { size: 3.5in 1.125in; margin: 0; }
+              @page { size: 50mm 30mm; margin: 0; }
               body { 
-                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
                 margin: 0; 
-                padding: 0;
-                width: 3.5in;
-                height: 1.125in;
+                padding: 1.5mm;
+                width: 50mm;
+                height: 30mm;
                 display: flex;
                 flex-direction: column;
                 justify-content: space-between;
                 box-sizing: border-box;
-                padding: 0.1in;
+                background: white;
+                overflow: hidden;
               }
-              .header { display: flex; justify-content: space-between; align-items: flex-start; }
-              .class-name { font-size: 10pt; font-weight: bold; text-transform: uppercase; color: #000; }
-              .security-code { font-size: 14pt; font-weight: 900; background: #000; color: #fff; padding: 2px 6px; border-radius: 4px; }
-              .main-name { font-size: 26pt; font-weight: 900; letter-spacing: -1px; line-height: 1; margin: 0; text-align: left; }
-              .footer { display: flex; justify-content: space-between; align-items: flex-end; font-size: 8pt; color: #333; }
-              .medical { background: #000; color: #fff; padding: 2px 4px; font-weight: bold; border-radius: 2px; }
-              .barcode-placeholder { font-family: 'Courier New', Courier, monospace; letter-spacing: 2px; }
+              .header { 
+                display: flex; 
+                justify-content: space-between; 
+                align-items: flex-start; 
+                border-bottom: 0.5pt solid #000;
+                padding-bottom: 0.5mm;
+              }
+              .brand { font-size: 7pt; font-weight: 900; color: #000; letter-spacing: -0.2pt; }
+              .class-info { font-size: 6.5pt; font-weight: bold; color: #444; }
+              
+              .main-content {
+                flex-grow: 1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 1mm 0;
+              }
+              .student-name { 
+                font-size: 20pt; 
+                font-weight: 900; 
+                letter-spacing: -1pt; 
+                line-height: 1; 
+                margin: 0; 
+                color: #000;
+              }
+              
+              .footer { 
+                display: flex; 
+                justify-content: space-between; 
+                align-items: flex-end; 
+                padding-top: 0.5mm;
+              }
+              .time { font-size: 6pt; font-weight: bold; color: #666; }
+              .barcode-placeholder { 
+                font-family: monospace; 
+                font-size: 6pt; 
+                letter-spacing: 0.5pt;
+                background: #000;
+                color: #fff;
+                padding: 1pt 3pt;
+                border-radius: 1pt;
+              }
+              .barcode-visual {
+                font-size: 10pt;
+                letter-spacing: 2pt;
+                line-height: 1;
+              }
             </style>
           </head>
           <body>
             <div class="header">
-              <span class="class-name">${request.className}</span>
-              <span class="security-code">${Math.random().toString(36).substring(2, 6).toUpperCase()}</span>
+              <span class="brand">CG CHILDREN GATE</span>
+              <span class="class-info">${request.className}</span>
             </div>
             
-            <h1 class="main-name">${request.studentName}</h1>
+            <div class="main-content">
+              <h1 class="student-name">${request.studentName}</h1>
+            </div>
             
             <div class="footer">
-               <span>
-                 <span class="medical">NO PEANUTS</span>
-                 &nbsp; ${request.parentName}
-               </span>
-               <span class="barcode-placeholder">||||| ||||||| |</span>
+               <span class="time">${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
+               <div style="text-align: right">
+                 <div class="barcode-visual">|||| ||| || |||</div>
+                 <div class="barcode-placeholder">${request.id.substring(0, 8).toUpperCase()}</div>
+               </div>
             </div>
             <script>
               window.onload = function() { 
                 setTimeout(function() {
                   window.print(); 
                   window.close(); 
-                }, 200);
+                }, 300);
               }
             </script>
           </body>
