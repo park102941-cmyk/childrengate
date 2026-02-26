@@ -1,5 +1,3 @@
-export const runtime = "edge";
-
 import ParentPortalClient from "./ParentPortalClient";
 
 export default function ParentPortalPage() {
