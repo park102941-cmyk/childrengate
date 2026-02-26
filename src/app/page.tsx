@@ -317,22 +317,50 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-black/5 py-12 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-primary rounded flex items-center justify-center">
-              <span className="text-white font-bold text-sm">C</span>
+      <footer className="border-t border-black/5 py-16 px-6 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
+            <div className="space-y-6 col-span-1 md:col-span-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+                  <span className="text-white font-bold text-base">C</span>
+                </div>
+                <span className="font-bold text-xl tracking-tight">Children Gate</span>
+              </div>
+              <p className="text-black/50 font-medium max-w-sm">
+                Smart and Safe Attendance System. Providing the most reliable bridge between institutions and parents.
+              </p>
+              <div className="text-sm text-black/40 font-medium space-y-1">
+                <p>{t.common.representative} | {t.common.email}</p>
+                <p>Address: [기본 주소 설정 전]</p>
+              </div>
             </div>
-            <span className="font-bold text-lg tracking-tight">Children Gate</span>
+            
+            <div className="space-y-6">
+              <h4 className="font-bold text-sm uppercase tracking-widest text-black/30">Legal</h4>
+              <ul className="space-y-4 text-sm font-bold">
+                <li><Link href="/privacy" className="text-black/60 hover:text-primary transition-colors">{t.common.privacy}</Link></li>
+                <li><Link href="/terms" className="text-black/60 hover:text-primary transition-colors">{t.common.terms}</Link></li>
+              </ul>
+            </div>
+
+            <div className="space-y-6">
+              <h4 className="font-bold text-sm uppercase tracking-widest text-black/30">Support</h4>
+              <ul className="space-y-4 text-sm font-bold">
+                <li><Link href="#" className="text-black/60 hover:text-primary transition-colors">{t.common.contact}</Link></li>
+                <li><Link href="/dashboard/admin/guide" className="text-black/60 hover:text-primary transition-colors">Admin Guide</Link></li>
+              </ul>
+            </div>
           </div>
-          <div className="flex gap-8 text-sm text-black/60">
-            <Link href="#" className="hover:text-black hover:underline underline-offset-4">{t.common.privacy}</Link>
-            <Link href="#" className="hover:text-black hover:underline underline-offset-4">{t.common.terms}</Link>
-            <Link href="#" className="hover:text-black hover:underline underline-offset-4">{t.common.contact}</Link>
+          
+          <div className="pt-8 border-t border-black/5 flex flex-col md:flex-row justify-between items-center gap-6">
+            <p className="text-sm text-black/30 font-medium">
+              {t.common.copyright}
+            </p>
+            <div className="flex gap-6 text-black/30">
+              {/* Optional: Social Icons */}
+            </div>
           </div>
-          <p className="text-sm text-black/40">
-            {t.common.footer}
-          </p>
         </div>
       </footer>
 

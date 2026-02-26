@@ -327,6 +327,12 @@ export default function SignupPage() {
                 {t.common.login}
               </Link>
             </p>
+
+            <div className="mt-8 pt-8 border-t border-black/5 text-center">
+              <p className="text-[10px] text-black/30 font-bold leading-relaxed">
+                가입 시 Children Gate의 <Link href="/terms" className="underline hover:text-primary">{t.common.terms}</Link> 및 <Link href="/privacy" className="underline hover:text-primary">{t.common.privacy}</Link>에 동의하게 됩니다.
+              </p>
+            </div>
           </form>
         </motion.div>
 

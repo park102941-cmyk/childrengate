@@ -9,7 +9,22 @@ export const translations = {
       footer: "© 2026 Children Gate. 모든 권리 보유.",
       privacy: "개인정보 처리방침",
       terms: "이용약관",
-      contact: "문의하기"
+      contact: "문의하기",
+      representative: "대표자: [성함]",
+      email: "admin@childrengate.com",
+      copyright: "Copyright © 2026 Children Gate. All Rights Reserved."
+    },
+    legal: {
+      privacy: {
+        title: "개인정보 처리방침",
+        items: "[개인정보 수집 및 이용 고지]\n* 수집 항목: 학생 성명, 소속 학급, 보호자 성명 및 연락처, 등하교 시간 기록.\n* 수집 목적: 실시간 등하교 알림 서비스 제공 및 안전 사고 예방.\n* 보유 기간: 서비스 이용 종료 시 혹은 기관 요청 시 즉시 파기.\n* 기술적 보호: 모든 데이터는 Google Firebase 인프라를 통해 암호화되어 관리됩니다.",
+        protection: "기술적 보호: 모든 데이터는 Google Firebase 인프라를 통해 암호화되어 관리됩니다."
+      },
+      terms: {
+        title: "이용약관",
+        responsibility: "[책임 제한 고지]\n* 본 서비스는 하교 요청을 전달하는 보조 도구이며, 실제 학생의 인도 및 안전 확인의 최종 책임은 학교(기관) 및 보호자에게 있습니다.\n* 시스템 오류, 네트워크 장애로 인한 통지 지연에 대해 'Children Gate'는 직접적인 법적 책임을 지지 않으나, 신속한 복구를 위해 최선을 다합니다.",
+        copyright: "[저작권 고지]\n* © 2026. Children Gate. All rights reserved.\n* 본 사이트에 게재된 소프트웨어 로직, QR 생성 시스템 및 로고 디자인은 저작권법의 보호를 받으며, 무단 복제 및 전재를 금합니다."
+      }
     },
     nav: {
       features: "주요 기능",
@@ -230,7 +245,22 @@ export const translations = {
       footer: "© 2026 Children Gate. All rights reserved.",
       privacy: "Privacy Policy",
       terms: "Terms of Service",
-      contact: "Contact Us"
+      contact: "Contact Us",
+      representative: "Representative: [Name]",
+      email: "admin@childrengate.com",
+      copyright: "Copyright © 2026 Children Gate. All Rights Reserved."
+    },
+    legal: {
+      privacy: {
+        title: "Privacy Policy",
+        items: "[Notice of Collection and Use of Personal Information]\n* Collected Items: Student name, class affiliation, parent name and contact information, attendance time records.\n* Collection Purpose: Providing real-time attendance notification services and preventing safety accidents.\n* Retention Period: Immediate destruction upon termination of service or request from the institution.\n* Technical Protection: All data is encrypted and managed through Google Firebase infrastructure.",
+        protection: "Technical Protection: All data is encrypted and managed through Google Firebase infrastructure."
+      },
+      terms: {
+        title: "Terms of Service",
+        responsibility: "[Notice of Limitation of Liability]\n* This service is an auxiliary tool for transmitting dismissal requests, and the final responsibility for the actual delivery and safety verification of students lies with the school (institution) and guardians.\n* 'Children Gate' is not directly legally responsible for notification delays due to system errors or network failures, but will do its best for swift recovery.",
+        copyright: "[Copyright Notice]\n* © 2026. Children Gate. All rights reserved.\n* The software logic, QR generation system, and logo design published on this site are protected by copyright law, and unauthorized reproduction or redistribution is prohibited."
+      }
     },
     nav: {
       features: "Features",
