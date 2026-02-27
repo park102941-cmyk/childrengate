@@ -1,9 +1,7 @@
 "use client";
 
-export const runtime = 'edge';
-
-
 import { useState } from "react";
+
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Users, Settings, Database, QrCode, Car, Calendar, Printer, HelpCircle, Share2, Check, type LucideIcon } from "lucide-react";

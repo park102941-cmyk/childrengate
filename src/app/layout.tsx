@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-
-export const runtime = 'edge';
-
 import { Inter } from "next/font/google";
+
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { LanguageProvider } from "@/context/LanguageContext";
