@@ -1,0 +1,23 @@
+0 verbose cli /usr/local/bin/node /usr/local/bin/npm
+1 info using npm@11.6.2
+2 info using node@v24.11.1
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 warn Unknown cli config "--unsafe-perm". This will stop working in the next major version of npm.
+5 silly config load:file:/Users/jdxblinds/Desktop/work/Kids Gate/.npmrc
+6 silly config load:file:/Users/jdxblinds/.npmrc
+7 silly config load:file:/usr/local/etc/npmrc
+8 verbose title npm install
+9 verbose argv "install" "--no-audit" "--unsafe-perm"
+10 verbose logfile logs-max:10 dir:/Users/jdxblinds/Desktop/work/Kids Gate/npm-cache/_logs/2026-02-27T23_53_30_511Z-
+11 verbose logfile /Users/jdxblinds/Desktop/work/Kids Gate/npm-cache/_logs/2026-02-27T23_53_30_511Z-debug-0.log
+12 silly logfile start cleaning logs, removing 1 files
+13 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+14 silly logfile done cleaning log files
+15 silly idealTree buildDeps
+16 silly reify moves {}
+17 verbose cwd /Users/jdxblinds/Desktop/work/Kids Gate
+18 verbose os Darwin 25.1.0
+19 verbose node v24.11.1
+20 verbose npm  v11.6.2
+21 verbose exit 0
+22 info ok
