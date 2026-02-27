@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
@@ -13,6 +13,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { institutionId } = useAuth();
   const pathname = usePathname();
   const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleCopyInvite = () => {
     if (!institutionId) return;
@@ -21,6 +26,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  if (!mounted) {
+    return <div className="min-h-screen bg-gray-50">{children}</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex">

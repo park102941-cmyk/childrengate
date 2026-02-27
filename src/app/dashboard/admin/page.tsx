@@ -1,6 +1,7 @@
 import dynamic from "next/dynamic";
 
-export const runtime = 'edge';
+// export const runtime = 'edge';
+
 
 const AdminClient = dynamic(() => import("./AdminClient"), {
   ssr: false,

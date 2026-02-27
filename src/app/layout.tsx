@@ -4,6 +4,8 @@ import { AuthProvider } from "@/context/AuthContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 
 // NOTE: next/font/google is NOT compatible with Cloudflare Pages Edge Runtime.
+
+
 // We use a standard <link> tag instead.
 
 export const metadata: Metadata = {
