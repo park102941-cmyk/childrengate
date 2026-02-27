@@ -25,7 +25,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<Role>(null);
   const [institutionId, setInstitutionId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(!!auth);
+  const [loading, setLoading] = useState(true);
+
 
   useEffect(() => {
     if (!auth) return;

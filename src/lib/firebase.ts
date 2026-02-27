@@ -11,19 +11,18 @@ const firebaseConfig = {
   appId: "1:1067549095640:web:822a85c7d3b16ead2cc9ad",
 };
 
-// Global singletons for Firebase services
-let app: FirebaseApp | undefined;
+// Singleton pattern that is safe for both Client and Server
+let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 
-// Initialize Firebase only in the browser to ensure compatibility with Edge Runtime
 if (typeof window !== "undefined") {
   try {
     app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
   } catch (error) {
-    console.error("Firebase initialization error:", error);
+    console.error("Firebase init failed:", error);
   }
 }
 
