@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 
-const inter = Inter({ subsets: ["latin"] });
+// NOTE: next/font/google is NOT compatible with Cloudflare Pages Edge Runtime.
+// We use a standard <link> tag instead.
 
 export const metadata: Metadata = {
   title: "Children Gate | Safe & Smart Attendance System",
@@ -29,7 +28,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body className={inter.className}>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+      </head>
+      <body style={{ fontFamily: "'Inter', sans-serif" }}>
         <LanguageProvider>
           <AuthProvider>
             {children}

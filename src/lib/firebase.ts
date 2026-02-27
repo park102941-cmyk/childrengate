@@ -1,7 +1,6 @@
 import { FirebaseApp, initializeApp, getApps, getApp } from "firebase/app";
 import { Auth, getAuth } from "firebase/auth";
 import { Firestore, getFirestore } from "firebase/firestore";
-import { getMessaging, isSupported } from "firebase/messaging";
 
 // IMPORTANT: authDomain must ALWAYS be the firebaseapp.com domain.
 // Do NOT set this to childrengate.com — Cloudflare Pages does not serve
@@ -31,11 +30,18 @@ if (typeof window !== "undefined") {
   }
 }
 
-
+// NOTE: firebase/messaging is NOT compatible with Cloudflare Pages Edge Runtime.
+// It is loaded lazily (browser-only) wherever needed.
 const messaging = async () => {
-  if (!app) return null;
-  const supported = await isSupported();
-  return supported ? getMessaging(app) : null;
+  if (typeof window === "undefined" || !app) return null;
+  try {
+    const { getMessaging, isSupported } = await import("firebase/messaging");
+    const supported = await isSupported();
+    return supported ? getMessaging(app) : null;
+  } catch {
+    return null;
+  }
 };
 
 export { app, auth, db, messaging };
+
