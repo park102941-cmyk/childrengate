@@ -21,13 +21,16 @@ let app: FirebaseApp | undefined;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 
-try {
-  app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-} catch (error) {
-  console.error("Firebase initialization error:", error);
+if (typeof window !== "undefined") {
+  try {
+    app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+  } catch (error) {
+    console.error("Firebase initialization error:", error);
+  }
 }
+
 
 const messaging = async () => {
   if (!app) return null;
