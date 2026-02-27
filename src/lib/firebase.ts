@@ -11,19 +11,37 @@ const firebaseConfig = {
   appId: "1:1067549095640:web:822a85c7d3b16ead2cc9ad",
 };
 
-// Singleton pattern that is safe for both Client and Server
-let app: FirebaseApp | null = null;
-let auth: Auth | null = null;
-let db: Firestore | null = null;
+// Internal cache
+let cachedApp: FirebaseApp | null = null;
+let cachedAuth: Auth | null = null;
+let cachedDb: Firestore | null = null;
 
-if (typeof window !== "undefined") {
-  try {
-    app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-  } catch (error) {
-    console.error("Firebase init failed:", error);
-  }
+function getSafeApp() {
+    if (typeof window === "undefined") return null;
+    if (!cachedApp) {
+        cachedApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    }
+    return cachedApp;
 }
 
-export { app, auth, db };
+export const getAuthInstance = () => {
+    if (typeof window === "undefined") return null;
+    const app = getSafeApp();
+    if (!app) return null;
+    if (!cachedAuth) cachedAuth = getAuth(app);
+    return cachedAuth;
+};
+
+export const getDbInstance = () => {
+    if (typeof window === "undefined") return null;
+    const app = getSafeApp();
+    if (!app) return null;
+    if (!cachedDb) cachedDb = getFirestore(app);
+    return cachedDb;
+};
+
+// Providing dummy objects for the server to prevent "undefined" errors during SSR initialization
+// but these will never be used for real calls.
+export const auth = typeof window !== "undefined" ? getAuth(getSafeApp()!) : null;
+export const db = typeof window !== "undefined" ? getFirestore(getSafeApp()!) : null;
+export const app = typeof window !== "undefined" ? getSafeApp() : null;

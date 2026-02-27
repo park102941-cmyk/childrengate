@@ -4,8 +4,8 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  // Ensure we don't use any Node-specific APIs that might leak during SSR
-  serverExternalPackages: ["firebase", "firebase-admin"],
+  // Removed serverExternalPackages as it might cause issues on Edge/Worker runtimes
+  // with next-on-pages if they aren't truly available as externals.
 };
 
 export default nextConfig;
