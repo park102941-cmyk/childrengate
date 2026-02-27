@@ -1,19 +1,18 @@
-import { NextResponse } from "next/server";
-
-// export const runtime = 'edge';
-
-// This endpoint receives sync events from parent and teacher dashboards
+// Basic API for Edge compatibility
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     console.log("[Sync Report]", body.type, body);
 
-    return NextResponse.json({ success: true });
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
   } catch (error) {
     console.error("Error syncing report:", error);
-    return NextResponse.json(
-      { error: "Failed to sync report" },
-      { status: 500 }
-    );
+    return new Response(JSON.stringify({ error: "Failed to sync report" }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }

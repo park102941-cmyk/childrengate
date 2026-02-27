@@ -1,12 +1,8 @@
-import { FirebaseApp, initializeApp, getApps, getApp } from "firebase/app";
-import { Auth, getAuth } from "firebase/auth";
-import { Firestore, getFirestore } from "firebase/firestore";
+import { FirebaseApp, getApps, getApp } from "firebase/app";
+import { Auth } from "firebase/auth";
+import { Firestore } from "firebase/firestore";
 
-// IMPORTANT: authDomain must ALWAYS be the firebaseapp.com domain.
-// Do NOT set this to childrengate.com — Cloudflare Pages does not serve
-// the /__/auth/ routes that Firebase requires for OAuth popup/redirect.
-// childrengate.com only needs to be in the Firebase "Authorized domains" list,
-// which it already is. That's a separate setting from authDomain.
+// IMPORTANT: No top-level firebase initialization to prevent Edge runtime crashes.
 const firebaseConfig = {
   apiKey: "AIzaSyDJm5vG3oeZUUMlVZXJqxkxo_dWE9SgPCc",
   authDomain: "schedulo-b0491.firebaseapp.com",
@@ -20,7 +16,12 @@ let app: FirebaseApp | undefined;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 
+// Lazy initialize Firebase only in the browser.
 if (typeof window !== "undefined") {
+  const { initializeApp } = require("firebase/app");
+  const { getAuth } = require("firebase/auth");
+  const { getFirestore } = require("firebase/firestore");
+
   try {
     app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
     auth = getAuth(app);
@@ -31,4 +32,3 @@ if (typeof window !== "undefined") {
 }
 
 export { app, auth, db };
-
