@@ -18,6 +18,6 @@ const ParentPortalClient = dynamic(() => import("./ParentPortalClient"), {
   ),
 });
 
-export default function ParentPortalWrapper() {
-  return <ParentPortalClient />;
+export default function ParentPortalWrapper({ institutionId }: { institutionId: string }) {
+  return <ParentPortalClient portalId={institutionId} />;
 }

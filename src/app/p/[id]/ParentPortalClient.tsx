@@ -14,10 +14,11 @@ import { useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from "firebase/firestore";
 
-export default function ParentPortal() {
+export default function ParentPortal({ portalId }: { portalId?: string }) {
   const { t } = useLanguage();
   const params = useParams();
-  const instId = params.id as string;
+  const instId = portalId || (params?.id as string) || "gate-XXXX";
+
 
   const [activeTab, setActiveTab] = useState<"home" | "messages">("home");
   const [showAddChild, setShowAddChild] = useState(false);

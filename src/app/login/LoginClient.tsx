@@ -127,25 +127,29 @@ export default function LoginPage() {
          }
       } else {
          // Auto-create user doc via Google Login
-         await setDoc(userDocRef, {
-           name: userCredential.user.displayName || "Google User",
-           email: userCredential.user.email,
-           role: expectedRole,
-           institutionId: "children-gate-church-01",
-           createdAt: new Date(),
-         });
-         
-         if (expectedRole === "admin") {
-           // Create institution doc if they chose institution
-           await setDoc(doc(db, "institutions", userCredential.user.uid), {
-             name: "New Institution (Google)",
-             adminId: userCredential.user.uid,
-             createdAt: new Date(),
-           });
-           router.push("/dashboard/admin");
-         } else {
-           router.push("/p/children-gate-church-01");
-         }
+          const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+          const newInstId = `gate-${randomStr}`;
+          const finalInstId = expectedRole === "admin" ? newInstId : "children-gate-church-01";
+
+          await setDoc(userDocRef, {
+            name: userCredential.user.displayName || "Google User",
+            email: userCredential.user.email,
+            role: expectedRole,
+            institutionId: finalInstId,
+            createdAt: new Date(),
+          });
+          
+          if (expectedRole === "admin") {
+            await setDoc(doc(db, "institutions", newInstId), {
+              name: "New Institution (Google)",
+              adminId: userCredential.user.uid,
+              createdAt: new Date(),
+            });
+            router.push("/dashboard/admin");
+          } else {
+            router.push(`/p/${finalInstId}`);
+          }
+
       }
     } catch (err: unknown) {
       console.error("Google Login error:", err);
