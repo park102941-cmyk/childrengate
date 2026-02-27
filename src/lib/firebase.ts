@@ -30,18 +30,5 @@ if (typeof window !== "undefined") {
   }
 }
 
-// NOTE: firebase/messaging is NOT compatible with Cloudflare Pages Edge Runtime.
-// It is loaded lazily (browser-only) wherever needed.
-const messaging = async () => {
-  if (typeof window === "undefined" || !app) return null;
-  try {
-    const { getMessaging, isSupported } = await import("firebase/messaging");
-    const supported = await isSupported();
-    return supported ? getMessaging(app) : null;
-  } catch {
-    return null;
-  }
-};
-
-export { app, auth, db, messaging };
+export { app, auth, db };
 
