@@ -3,11 +3,6 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 
-// NOTE: next/font/google is NOT compatible with Cloudflare Pages Edge Runtime.
-
-
-// We use a standard <link> tag instead.
-
 export const metadata: Metadata = {
   title: "Children Gate | Safe & Smart Attendance System",
   description: "QR 스캔 한 번으로 시작되는 스마트한 출결 관리 시스템",
@@ -36,15 +31,12 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
       </head>
       <body style={{ fontFamily: "'Inter', sans-serif" }}>
-        {/* <LanguageProvider>
-          <AuthProvider> */}
+        <LanguageProvider>
+          <AuthProvider>
             {children}
-          {/* </AuthProvider>
-        </LanguageProvider> */}
+          </AuthProvider>
+        </LanguageProvider>
       </body>
-
-
     </html>
   );
 }
-
