@@ -774,14 +774,14 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
                          <button type="submit" className="flex-1 py-4 bg-black text-white font-bold rounded-2xl shadow-xl shadow-black/30 active:scale-95 transition-transform">수정 완료</button>
                        </div>
                      ) : (
-                       <>
+                       <div className="flex flex-col gap-3">
                          <button type="button" onClick={(e) => handleSaveChild(e, true)} className="w-full py-4 bg-primary/10 text-primary font-bold rounded-2xl active:scale-95 transition-transform border border-primary/20 hover:bg-primary hover:text-white">
                            저장하고 자녀 한 명 더 추가하기
                          </button>
                          <button type="submit" className="w-full py-4 bg-black text-white font-bold rounded-2xl shadow-xl shadow-black/30 active:scale-95 transition-transform">
                            프로필 등록 완료
                          </button>
-                       </>
+                       </div>
                      )}
                   </div>
                </form>
