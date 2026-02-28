@@ -4,8 +4,18 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  // Removed serverExternalPackages as it might cause issues on Edge/Worker runtimes
-  // with next-on-pages if they aren't truly available as externals.
+  async rewrites() {
+    return [
+      {
+        source: '/p/:id',
+        destination: '/p-portal?id=:id',
+      },
+      {
+        source: '/dashboard/admin/student/:id',
+        destination: '/dashboard/admin/student-detail?id=:id',
+      }
+    ];
+  }
 };
 
 export default nextConfig;

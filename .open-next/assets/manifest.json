@@ -1,0 +1,16 @@
+{
+  "name": "Children Gate",
+  "short_name": "Children Gate",
+  "description": "Safe & Smart Attendance System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0071e3",
+  "icons": [
+    {
+      "src": "/window.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
