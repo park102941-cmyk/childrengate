@@ -1,0 +1,2 @@
+/p/:id /p-portal?id=:id 200
+/dashboard/admin/student/:id /dashboard/admin/student-detail?id=:id 200
