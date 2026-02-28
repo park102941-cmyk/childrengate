@@ -1,0 +1,82 @@
+0 verbose cli /usr/local/bin/node /usr/local/bin/npm
+1 info using npm@11.6.2
+2 info using node@v24.11.1
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/jdxblinds/Desktop/work/Kids Gate/.npmrc
+5 silly config load:file:/Users/jdxblinds/.npmrc
+6 silly config load:file:/usr/local/etc/npmrc
+7 verbose title npm install recharts lucide-react@0.344.0
+8 verbose argv "install" "--save-dev" "recharts" "lucide-react@0.344.0"
+9 verbose logfile logs-max:10 dir:/Users/jdxblinds/Desktop/work/Kids Gate/npm-cache/_logs/2026-02-28T22_22_30_305Z-
+10 verbose logfile /Users/jdxblinds/Desktop/work/Kids Gate/npm-cache/_logs/2026-02-28T22_22_30_305Z-debug-0.log
+11 silly logfile start cleaning logs, removing 1 files
+12 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+13 silly logfile done cleaning log files
+14 warn idealTree Removing dependencies.recharts in favor of devDependencies.recharts
+15 warn idealTree Removing dependencies.lucide-react in favor of devDependencies.lucide-react
+16 silly idealTree buildDeps
+17 silly fetch manifest recharts@*
+18 silly packumentCache full:https://registry.npmjs.org/recharts cache-miss
+19 http fetch GET 200 https://registry.npmjs.org/recharts 152ms (cache revalidated)
+20 silly packumentCache full:https://registry.npmjs.org/recharts set size:1328786 disposed:false
+21 silly fetch manifest react@^19.0.0
+22 silly packumentCache full:https://registry.npmjs.org/react cache-miss
+23 http fetch GET 200 https://registry.npmjs.org/react 46ms (cache revalidated)
+24 silly packumentCache full:https://registry.npmjs.org/react set size:6523821 disposed:false
+25 silly fetch manifest react-dom@^19.0.0
+26 silly packumentCache full:https://registry.npmjs.org/react-dom cache-miss
+27 http fetch GET 200 https://registry.npmjs.org/react-dom 93ms (cache revalidated)
+28 silly packumentCache full:https://registry.npmjs.org/react-dom set size:8651400 disposed:false
+29 silly fetch manifest react-is@^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+30 silly packumentCache full:https://registry.npmjs.org/react-is cache-miss
+31 http fetch GET 200 https://registry.npmjs.org/react-is 35ms (cache revalidated)
+32 silly packumentCache full:https://registry.npmjs.org/react-is set size:5282126 disposed:false
+33 silly fetch manifest lucide-react@0.344.0
+34 silly packumentCache full:https://registry.npmjs.org/lucide-react cache-miss
+35 http fetch GET 200 https://registry.npmjs.org/lucide-react 35ms (cache revalidated)
+36 silly packumentCache full:https://registry.npmjs.org/lucide-react set size:2192180 disposed:false
+37 silly fetch manifest react@^16.5.1 || ^17.0.0 || ^18.0.0
+38 silly packumentCache full:https://registry.npmjs.org/react cache-miss
+39 http cache https://registry.npmjs.org/react 8ms (cache hit)
+40 silly packumentCache full:https://registry.npmjs.org/react set size:6523821 disposed:false
+41 verbose stack Error: unable to resolve dependency tree
+41 verbose stack     at #failPeerConflict (/usr/local/lib/node_modules/npm/node_modules/@npmcli/arborist/lib/arborist/build-ideal-tree.js:1420:25)
+41 verbose stack     at #loadPeerSet (/usr/local/lib/node_modules/npm/node_modules/@npmcli/arborist/lib/arborist/build-ideal-tree.js:1386:33)
+41 verbose stack     at async #buildDepStep (/usr/local/lib/node_modules/npm/node_modules/@npmcli/arborist/lib/arborist/build-ideal-tree.js:929:11)
+41 verbose stack     at async Arborist.buildIdealTree (/usr/local/lib/node_modules/npm/node_modules/@npmcli/arborist/lib/arborist/build-ideal-tree.js:182:7)
+41 verbose stack     at async Promise.all (index 1)
+41 verbose stack     at async Arborist.reify (/usr/local/lib/node_modules/npm/node_modules/@npmcli/arborist/lib/arborist/reify.js:114:5)
+41 verbose stack     at async Install.exec (/usr/local/lib/node_modules/npm/lib/commands/install.js:150:5)
+41 verbose stack     at async Npm.exec (/usr/local/lib/node_modules/npm/lib/npm.js:208:9)
+41 verbose stack     at async module.exports (/usr/local/lib/node_modules/npm/lib/cli/entry.js:67:5)
+42 error code ERESOLVE
+43 error ERESOLVE unable to resolve dependency tree
+44 error
+45 error While resolving: children-gate@0.1.0
+45 error Found: react@19.2.4[2m[22m
+45 error [2mnode_modules/react[22m
+45 error   react@"^19.0.0" from the root project
+45 error
+45 error Could not resolve dependency:
+45 error [95mpeer[39m react@"^16.5.1 || ^17.0.0 || ^18.0.0" from lucide-react@0.344.0[2m[22m
+45 error [2mnode_modules/lucide-react[22m
+45 error   [34mdev[39m lucide-react@"0.344.0" from the root project
+45 error
+45 error Fix the upstream dependency conflict, or retry
+45 error this command with --force or --legacy-peer-deps
+45 error to accept an incorrect (and potentially broken) dependency resolution.
+46 error
+46 error
+46 error For a full report see:
+46 error /Users/jdxblinds/Desktop/work/Kids Gate/npm-cache/_logs/2026-02-28T22_22_30_305Z-eresolve-report.txt
+47 silly unfinished npm timer reify 1772317350658
+48 silly unfinished npm timer reify:loadTrees 1772317350660
+49 silly unfinished npm timer idealTree:buildDeps 1772317350803
+50 silly unfinished npm timer idealTree:#root 1772317350804
+51 verbose cwd /Users/jdxblinds/Desktop/work/Kids Gate
+52 verbose os Darwin 25.1.0
+53 verbose node v24.11.1
+54 verbose npm  v11.6.2
+55 verbose exit 1
+56 verbose code 1
+57 error A complete log of this run can be found in: /Users/jdxblinds/Desktop/work/Kids Gate/npm-cache/_logs/2026-02-28T22_22_30_305Z-debug-0.log

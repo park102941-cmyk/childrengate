@@ -1,33 +1,75 @@
+var __create = Object.create;
 var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 
 // .wrangler/tmp/bundle-kcO8QH/checked-fetch.js
-var urls = /* @__PURE__ */ new Set();
-function checkURL(request, init) {
-  const url = request instanceof URL ? request : new URL(
-    (typeof request === "string" ? new Request(request, init) : request).url
-  );
-  if (url.port && url.port !== "443" && url.protocol === "https:") {
-    if (!urls.has(url.toString())) {
-      urls.add(url.toString());
-      console.warn(
-        `WARNING: known issue with \`fetch()\` requests to custom HTTPS ports in published Workers:
+var require_checked_fetch = __commonJS({
+  ".wrangler/tmp/bundle-kcO8QH/checked-fetch.js"() {
+    "use strict";
+    var urls = /* @__PURE__ */ new Set();
+    function checkURL(request, init) {
+      const url = request instanceof URL ? request : new URL(
+        (typeof request === "string" ? new Request(request, init) : request).url
+      );
+      if (url.port && url.port !== "443" && url.protocol === "https:") {
+        if (!urls.has(url.toString())) {
+          urls.add(url.toString());
+          console.warn(
+            `WARNING: known issue with \`fetch()\` requests to custom HTTPS ports in published Workers:
  - ${url.toString()} - the custom port will be ignored when the Worker is published using the \`wrangler deploy\` command.
 `
-      );
+          );
+        }
+      }
     }
-  }
-}
-__name(checkURL, "checkURL");
-globalThis.fetch = new Proxy(globalThis.fetch, {
-  apply(target, thisArg, argArray) {
-    const [request, init] = argArray;
-    checkURL(request, init);
-    return Reflect.apply(target, thisArg, argArray);
+    __name(checkURL, "checkURL");
+    globalThis.fetch = new Proxy(globalThis.fetch, {
+      apply(target, thisArg, argArray) {
+        const [request, init] = argArray;
+        checkURL(request, init);
+        return Reflect.apply(target, thisArg, argArray);
+      }
+    });
   }
 });
 
+// .wrangler/tmp/bundle-kcO8QH/middleware-loader.entry.ts
+var import_checked_fetch9 = __toESM(require_checked_fetch());
+
+// wrangler-modules-watch:wrangler:modules-watch
+var import_checked_fetch = __toESM(require_checked_fetch());
+
+// .wrangler/tmp/bundle-kcO8QH/middleware-insertion-facade.js
+var import_checked_fetch7 = __toESM(require_checked_fetch());
+
+// .wrangler/tmp/pages-BIDr03/anwtu4o3qj5.js
+var import_checked_fetch4 = __toESM(require_checked_fetch());
+
 // .wrangler/tmp/pages-BIDr03/bundledWorker-0.12579604208750494.mjs
+var import_checked_fetch2 = __toESM(require_checked_fetch(), 1);
 var __defProp2 = Object.defineProperty;
 var __name2 = /* @__PURE__ */ __name((target, value) => __defProp2(target, "name", { value, configurable: true }), "__name");
 import("node:buffer").then(({ Buffer: Buffer2 }) => {
@@ -842,6 +884,7 @@ var Sa = { async fetch(e, t, s) {
 } };
 
 // ../../../node_modules/wrangler/templates/pages-dev-util.ts
+var import_checked_fetch3 = __toESM(require_checked_fetch());
 function isRoutingRuleMatch(pathname, routingRule) {
   if (!pathname) {
     throw new Error("Pathname is undefined.");
@@ -896,6 +939,7 @@ var pages_dev_pipeline_default = {
 };
 
 // ../../../node_modules/wrangler/templates/middleware/middleware-ensure-req-body-drained.ts
+var import_checked_fetch5 = __toESM(require_checked_fetch());
 var drainBody = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx) => {
   try {
     return await middlewareCtx.next(request, env);
@@ -914,6 +958,7 @@ var drainBody = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 var middleware_ensure_req_body_drained_default = drainBody;
 
 // ../../../node_modules/wrangler/templates/middleware/middleware-miniflare3-json-error.ts
+var import_checked_fetch6 = __toESM(require_checked_fetch());
 function reduceError(e) {
   return {
     name: e?.name,
@@ -944,6 +989,7 @@ var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
 var middleware_insertion_facade_default = pages_dev_pipeline_default;
 
 // ../../../node_modules/wrangler/templates/middleware/common.ts
+var import_checked_fetch8 = __toESM(require_checked_fetch());
 var __facade_middleware__ = [];
 function __facade_register__(...args) {
   __facade_middleware__.push(...args.flat());
