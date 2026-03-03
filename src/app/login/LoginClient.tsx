@@ -1,18 +1,10 @@
 "use client";
 
-
-
-
-
-
-
-
-
 import { useState } from "react";
 import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ShieldCheck, Mail, Lock, ArrowRight, Globe, X, CheckCircle2 } from "lucide-react";
@@ -21,6 +13,7 @@ import { useLanguage } from "@/context/LanguageContext";
 
 export default function LoginPage() {
   const { t, language, setLanguage } = useLanguage();
+  const searchParams = useSearchParams();
   const [userType, setUserType] = useState<"parent" | "institution">("parent");
   const [formData, setFormData] = useState({
     email: "",
@@ -33,6 +26,15 @@ export default function LoginPage() {
   const [resetEmail, setResetEmail] = useState("");
   const [resetSent, setResetSent] = useState(false);
   const router = useRouter();
+
+  // Guest Access State
+  const [showGuestForm, setShowGuestForm] = useState(false);
+  const [guestData, setGuestData] = useState({
+    studentName: "",
+    grade: "",
+    parentName: "",
+    phoneNumber: "",
+  });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +68,7 @@ export default function LoginPage() {
         if (userData.role === "admin" || userData.role === "staff") {
           router.push("/dashboard/admin");
         } else {
-          router.push(`/p/${userData.institutionId || "children-gate-church-01"}`);
+          router.push(`/p/${userData.institutionId}`);
         }
       } else {
          await auth.signOut();
@@ -92,6 +94,32 @@ export default function LoginPage() {
     } catch (err: unknown) {
       console.error("Reset password error:", err);
       setError(t.auth.errorReset);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGuestSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      if (!db) throw new Error("Database not ready");
+      
+      const docRef = await addDoc(collection(db, "guests"), {
+        ...guestData,
+        institutionId: "KG-GUEST", // Or keep as is if we want a common guest pool, but better to use a placeholder or remove it
+        createdAt: serverTimestamp(),
+        type: "guest"
+      });
+
+      // Simulation of SMS sending
+      alert(`[SMS 시뮬레이션] ${guestData.phoneNumber} 번호로 접속 링크가 전송되었습니다.`);
+      
+      router.push(`/p-portal?guestId=${docRef.id}`);
+    } catch (err: unknown) {
+      console.error("Guest access error:", err);
+      setError("게스트 등록 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
@@ -123,13 +151,13 @@ export default function LoginPage() {
          if (userData.role === "admin" || userData.role === "staff") {
            router.push("/dashboard/admin");
          } else {
-           router.push(`/p/${userData.institutionId || "children-gate-church-01"}`);
+           router.push(`/p/${userData.institutionId}`);
          }
       } else {
          // Auto-create user doc via Google Login
-          const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
-          const newInstId = `gate-${randomStr}`;
-          const finalInstId = expectedRole === "admin" ? newInstId : "children-gate-church-01";
+          const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+          const newInstId = `KG-${randomStr}`;
+          const finalInstId = expectedRole === "admin" ? newInstId : ""; // Parent needs code
 
           await setDoc(userDocRef, {
             name: userCredential.user.displayName || "Google User",
@@ -147,6 +175,11 @@ export default function LoginPage() {
             });
             router.push("/dashboard/admin");
           } else {
+            // If they are a parent but don't have a doc, they shouldn't be auto-created without an institutionId.
+            // For now, redirect to a setup or just error.
+            if (!finalInstId) {
+                throw new Error("학부모 가입은 원에서 제공한 코드가 필요합니다. 가입 페이지에서 코드를 입력해 주세요.");
+            }
             router.push(`/p/${finalInstId}`);
           }
 
@@ -299,6 +332,17 @@ export default function LoginPage() {
                 {t.common.signup}
               </Link>
             </p>
+
+            {/* Guest Continue Button */}
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={() => setShowGuestForm(true)}
+                className="w-full bg-emerald-50 text-emerald-700 py-4 rounded-2xl text-base font-bold hover:bg-emerald-100 transition-all flex items-center justify-center gap-2 border border-emerald-100"
+              >
+                🔒 {t.auth.guestContinue || "가입 없이 게스트로 계속하기"}
+              </button>
+            </div>
           </form>
         </motion.div>
 
@@ -388,6 +432,99 @@ export default function LoginPage() {
                 </button>
               </div>
             )}
+          </motion.div>
+        </div>
+      )}
+
+      {/* Guest Access Modal */}
+      {showGuestForm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-md">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 50 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white w-full max-w-md rounded-[44px] p-8 md:p-10 shadow-2xl relative border border-black/5 max-h-[90vh] overflow-y-auto"
+          >
+            <button 
+              onClick={() => setShowGuestForm(false)}
+              className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 text-black/40 hover:bg-gray-100 transition-all"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <CheckCircle2 size={32} />
+              </div>
+              <h2 className="text-2xl font-black text-black mb-2">게스트로 계속하기</h2>
+              <p className="text-sm font-bold text-black/50">간단한 정보만 입력하고 바로 시작하세요!</p>
+            </div>
+
+            <form onSubmit={handleGuestSubmit} className="space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-black ml-1">학생 이름</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="홍길동"
+                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-black font-medium"
+                    value={guestData.studentName}
+                    onChange={(e) => setGuestData({ ...guestData, studentName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-black ml-1">학년/반</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="1학년 1반"
+                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-black font-medium"
+                    value={guestData.grade}
+                    onChange={(e) => setGuestData({ ...guestData, grade: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-black ml-1">보호자 성함</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="김철수"
+                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-black font-medium"
+                    value={guestData.parentName}
+                    onChange={(e) => setGuestData({ ...guestData, parentName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-black ml-1">보호자 휴대폰 번호</label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="010-0000-0000"
+                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-black font-medium"
+                    value={guestData.phoneNumber}
+                    onChange={(e) => setGuestData({ ...guestData, phoneNumber: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <p className="text-error text-sm font-bold text-center bg-error/10 py-3 rounded-xl">
+                  {error}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-emerald-600 text-white py-5 rounded-2xl text-lg font-bold hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-900/10 flex items-center justify-center gap-2"
+              >
+                {loading ? "처리 중..." : "등록 및 포털 접속"} <ArrowRight size={20} />
+              </button>
+              
+              <p className="text-[10px] text-black/30 text-center font-bold">
+                입력하신 번호로 접속 링크를 보내드립니다.
+              </p>
+            </form>
           </motion.div>
         </div>
       )}

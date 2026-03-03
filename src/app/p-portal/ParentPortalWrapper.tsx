@@ -1,10 +1,15 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { Suspense } from "react";
 
 const ParentPortalClient = dynamic(() => import("./ParentPortalClient"), {
   ssr: false,
-  loading: () => (
+  loading: () => <LoadingSpinner />,
+});
+
+function LoadingSpinner() {
+  return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="text-center">
         <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl animate-pulse">
@@ -15,9 +20,13 @@ const ParentPortalClient = dynamic(() => import("./ParentPortalClient"), {
         <p className="font-bold text-black/50">칠드런 게이트 로딩 중...</p>
       </div>
     </div>
-  ),
-});
+  );
+}
 
 export default function ParentPortalWrapper() {
-  return <ParentPortalClient />;
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <ParentPortalClient />
+    </Suspense>
+  );
 }

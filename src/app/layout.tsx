@@ -12,6 +12,10 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "Children Gate",
   },
+  icons: {
+    icon: "/children_gate_logo.png",
+    apple: "/children_gate_logo.png",
+  },
 };
 
 export const viewport = {
@@ -24,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

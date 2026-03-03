@@ -10,7 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 export default function QRManagementPage() {
   const { t } = useLanguage();
   const { institutionId } = useAuth();
-  const [instId, setInstId] = useState("gate-XXXX");
+  const [instId, setInstId] = useState("KG-XXXXXX");
   const [qrValue, setQrValue] = useState("");
 
   useEffect(() => {

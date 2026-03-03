@@ -35,7 +35,7 @@ export default function ParentRequestPage() {
         requestTime: Timestamp.now(),
         status: "pending",
         type: "qr",
-        institutionId: "default_inst"
+        institutionId: "KG-NONE"
       });
 
       // Sync to Google Sheets (Reporting Store)

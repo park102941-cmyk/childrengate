@@ -8,7 +8,7 @@ import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ShieldCheck, Mail, Lock, User, Building2, ArrowRight, Phone, Baby, Globe, MapPin, Users } from "lucide-react";
+import { Mail, Lock, User, Building2, ArrowRight, Phone, Baby, Globe, MapPin, Users } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 
 export default function SignupPage() {
@@ -35,7 +35,7 @@ function SignupContent() {
     studentCount: "1-50명",
     address: "",
     childClass: "",
-    relationship: "부모",
+    relationship: "부 (아버지)",
   });
 
   useEffect(() => {
@@ -53,14 +53,35 @@ function SignupContent() {
   const [error, setError] = useState("");
   const router = useRouter();
 
+  const getKoreanErrorMessage = (code: string): string => {
+    const errorMap: Record<string, string> = {
+      "auth/email-already-in-use": "이미 사용 중인 이메일입니다. 로그인을 시도해 주세요.",
+      "auth/invalid-email": "유효하지 않은 이메일 형식입니다.",
+      "auth/weak-password": "비밀번호는 6자리 이상이어야 합니다.",
+      "auth/network-request-failed": "네트워크 오류가 발생했습니다. 인터넷 연결을 확인해 주세요.",
+      "auth/invalid-api-key": "Firebase 설정 오류입니다. 관리자에게 문의하세요.",
+      "auth/too-many-requests": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+      "auth/operation-not-allowed": "이메일/비밀번호 가입이 비활성화되어 있습니다. 관리자에게 문의하세요.",
+      "permission-denied": "데이터 저장 권한이 없습니다. 관리자에게 문의하세요.",
+    };
+    return errorMap[code] || `오류가 발생했습니다: ${code}`;
+  };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
+    // Client-side validation
+    if (!formData.name.trim()) { setError("이름을 입력해 주세요."); setLoading(false); return; }
+    if (!formData.email.trim()) { setError("이메일을 입력해 주세요."); setLoading(false); return; }
+    if (formData.password.length < 6) { setError("비밀번호는 6자리 이상이어야 합니다."); setLoading(false); return; }
+    if (userType === "institution" && !formData.institutionName.trim()) { setError("기관 이름을 입력해 주세요."); setLoading(false); return; }
+    if (userType === "parent" && !formData.instCode.trim()) { setError("기관 코드를 입력해 주세요. (원에서 받은 KG-XXXXXX 코드)"); setLoading(false); return; }
+
     try {
       if (!auth || !db) {
-        throw new Error("Firebase is not initialized");
+        throw new Error("Firebase가 초기화되지 않았습니다. 페이지를 새로고침 해주세요.");
       }
 
       // 1. Create user in Firebase Auth
@@ -78,9 +99,9 @@ function SignupContent() {
 
       // 3. Create role-specific doc in Firestore
       if (userType === "institution") {
-        // More robust Institution ID generation
-        const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
-        const institutionId = `gate-${randomStr}`;
+        // More robust Institution ID generation (e.g., KG-A1B2C3)
+        const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const institutionId = `KG-${randomStr}`;
 
         await setDoc(doc(db, "institutions", institutionId), {
           name: formData.institutionName,
@@ -105,19 +126,24 @@ function SignupContent() {
           name: formData.name,
           email: formData.email,
           role: "parent",
-          institutionId: formData.instCode || "children-gate-church-01",
+          institutionId: formData.instCode.trim(),
           phone: formData.contact,
           childClass: formData.childClass,
           relationship: formData.relationship,
           createdAt: new Date(),
         });
 
-        router.push(`/p/${formData.instCode || "children-gate-church-01"}`);
+        router.push(`/p/${formData.instCode.trim()}`);
       }
     } catch (err: unknown) {
       console.error("Signup error:", err);
-      const errorMessage = err instanceof Error ? err.message : (t.auth as any).errorSignup;
-      setError(errorMessage);
+      if (err && typeof err === "object" && "code" in err) {
+        setError(getKoreanErrorMessage((err as { code: string }).code));
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("알 수 없는 오류가 발생했습니다. 다시 시도해 주세요.");
+      }
     } finally {
       setLoading(false);
     }
@@ -141,14 +167,14 @@ function SignupContent() {
          if (userData.role === "admin") {
            router.push("/dashboard/admin");
          } else {
-           router.push(`/p/${userData.institutionId || "children-gate-church-01"}`);
+           router.push(`/p/${userData.institutionId}`);
          }
          return;
       }
 
       if (userType === "institution") {
-        const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
-        const institutionId = `gate-${randomStr}`;
+        const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const institutionId = `KG-${randomStr}`;
         
         await setDoc(doc(db, "institutions", institutionId), {
           name: formData.institutionName || "New Institution (Google)",
@@ -171,12 +197,12 @@ function SignupContent() {
           name: user.displayName || "Google Parent",
           email: user.email,
           role: "parent",
-          institutionId: formData.instCode || "children-gate-church-01",
+          institutionId: formData.instCode,
           phone: formData.contact || "",
           relationship: formData.relationship,
           createdAt: new Date(),
         });
-        router.push(`/p/${formData.instCode || "children-gate-church-01"}`);
+        router.push(`/p/${formData.instCode}`);
       }
     } catch (err: unknown) {
       console.error("Google Signup error:", err);
@@ -340,7 +366,7 @@ function SignupContent() {
                       <input
                         type="text"
                         required
-                        placeholder="예: gate-XXXX"
+                        placeholder="예: KG-A1B2C3"
                         className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-black/20 text-black font-medium"
                         value={formData.instCode}
                         onChange={(e) => setFormData({ ...formData, instCode: e.target.value })}

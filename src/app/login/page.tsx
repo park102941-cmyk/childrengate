@@ -1,9 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { Suspense } from "react";
 
 // export const runtime = 'edge';
-
 
 const LoginClient = dynamic(() => import("./LoginClient"), {
   ssr: false,
@@ -20,5 +20,9 @@ const LoginClient = dynamic(() => import("./LoginClient"), {
 });
 
 export default function LoginPage() {
-  return <LoginClient />;
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center"><p className="font-bold text-black/50">로딩 중...</p></div>}>
+      <LoginClient />
+    </Suspense>
+  );
 }

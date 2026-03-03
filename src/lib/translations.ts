@@ -132,7 +132,8 @@ export const translations = {
       sendResetLink: "재설정 링크 보내기",
       resetLinkSent: "이메일이 전송되었습니다. 편지함을 확인해 주세요.",
       backToLogin: "로그인으로 돌아가기",
-      errorReset: "이메일을 보내는 중 오류가 발생했습니다."
+      errorReset: "이메일을 보내는 중 오류가 발생했습니다.",
+      guestContinue: "가입 없이 게스트로 계속하기"
     },
     dashboard: {
       admin: {
@@ -382,7 +383,8 @@ export const translations = {
       sendResetLink: "Send Reset Link",
       resetLinkSent: "Reset email sent. Please check your inbox.",
       backToLogin: "Back to Login",
-      errorReset: "Error sending password reset email."
+      errorReset: "Error sending password reset email.",
+      guestContinue: "Continue as Guest"
     },
     dashboard: {
       admin: {

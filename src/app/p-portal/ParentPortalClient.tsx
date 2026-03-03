@@ -7,15 +7,17 @@ import { QrCode, Plus, Calendar, Clock, MessageSquare, FileIcon, ChevronRight, U
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, getDoc, getDocs } from "firebase/firestore";
 
 export default function ParentPortal({ portalId }: { portalId?: string }) {
   const { t } = useLanguage();
   const searchParams = useSearchParams();
-  const instId = portalId || searchParams?.get("id") || "gate-XXXX";
+  const instId = portalId || searchParams?.get("id") || "";
 
 
   const [activeTab, setActiveTab] = useState<"home" | "messages">("home");
+  const [instName, setInstName] = useState("");
+
   const [showAddChild, setShowAddChild] = useState(false);
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [hasDismissedInitialModal, setHasDismissedInitialModal] = useState(false);
@@ -57,10 +59,58 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
   const [memo, setMemo] = useState("");
 
   useEffect(() => {
-    if (children.length === 0 && activeTab === "home" && !hasDismissedInitialModal) {
+    const guestId = searchParams?.get("guestId");
+    if (guestId && db) {
+      const fetchGuest = async () => {
+        const guestDoc = await getDoc(doc(db!, "guests", guestId));
+        if (guestDoc.exists()) {
+          const data = guestDoc.data();
+          setChildren([{
+            id: guestId,
+            name: data.studentName,
+            class: data.grade,
+            status: "absent",
+            checkIn: null,
+            checkOut: null
+          }]);
+          setHasDismissedInitialModal(true);
+        }
+      };
+      fetchGuest();
+    }
+  }, [searchParams, db]);
+
+  useEffect(() => {
+    if (instId && db) {
+      const fetchInst = async () => {
+        try {
+          // 1. Try finding by institutionId field
+          const q = query(collection(db!, "institutions"), where("institutionId", "==", instId));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            setInstName(querySnapshot.docs[0].data().name);
+          } else {
+            // 2. Fallback: Try document ID
+            const instDoc = await getDoc(doc(db!, "institutions", instId));
+            if (instDoc.exists()) {
+              setInstName(instDoc.data().name);
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching institution:", error);
+        }
+      };
+      fetchInst();
+    }
+  }, [instId, db]);
+
+
+  useEffect(() => {
+    const isGuest = !!searchParams?.get("guestId");
+    if (children.length === 0 && activeTab === "home" && !hasDismissedInitialModal && !isGuest) {
       setShowAddChild(true);
     }
-  }, [children.length, activeTab, hasDismissedInitialModal]);
+  }, [children.length, activeTab, hasDismissedInitialModal, searchParams]);
 
   const handleToggleSelect = (id: string, status: string) => {
     if (selectedChildren.includes(id)) {
@@ -246,9 +296,10 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
                <img src="/children_gate_logo.png" alt="Children Gate Logo" className="w-full h-full object-contain p-2" />
             </div>
             <div>
-               <h1 className="font-black text-lg text-black leading-tight">칠드런 게이트</h1>
-               <p className="text-xs text-black/40 font-bold">{instId === "children-gate-church-01" ? "칠드런 게이트 어린이집" : instId}</p>
+               <h1 className="font-black text-lg text-black leading-tight">{instName || "칠드런 게이트"}</h1>
+               <p className="text-xs text-black/40 font-bold">{instId || "연결 중..."}</p>
             </div>
+
          </div>
          <div className="flex items-center gap-2">
             <button 
@@ -299,7 +350,7 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setShowProModal(true)}
-                    className="w-full p-4 bg-linear-to-tr from-black to-gray-800 rounded-3xl text-left relative overflow-hidden group shadow-xl"
+                    className="w-full p-4 bg-gradient-to-tr from-black to-gray-800 rounded-3xl text-left relative overflow-hidden group shadow-xl"
                   >
                     <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-white/20 transition-all"></div>
                     <div className="flex items-center justify-between relative z-10">
@@ -316,7 +367,7 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
                 )}
 
                 {/* 1. Main Control Panel (Drop Off / Pick Up) -- THIS IS THE PRIORITY UI */}
-                <div className="bg-white rounded-[40px] p-6 shadow-2xl border border-primary/20 bg-linear-to-tr from-white to-primary/5 relative overflow-hidden">
+                <div className="bg-white rounded-[40px] p-6 shadow-2xl border border-primary/20 bg-gradient-to-tr from-white to-primary/5 relative overflow-hidden">
                   <div className="flex items-center gap-2 mb-4 bg-white/60 p-3 rounded-2xl border border-black/5 backdrop-blur-sm">
                     <div className="w-8 h-8 bg-black rounded-lg text-white flex items-center justify-center shrink-0">
                     </div>
@@ -387,7 +438,7 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
 
                           <div className="flex items-center gap-4 mb-6 relative z-10">
                              <div className="relative group">
-                               <div className={`w-14 h-14 bg-linear-to-tr shadow-inner border border-white rounded-full flex items-center justify-center font-black text-xl overflow-hidden ${isSelected ? 'from-primary to-primary/80 text-white' : 'from-primary/20 to-primary/5 text-primary'}`}>
+                               <div className={`w-14 h-14 bg-gradient-to-tr shadow-inner border border-white rounded-full flex items-center justify-center font-black text-xl overflow-hidden ${isSelected ? 'from-primary to-primary/80 text-white' : 'from-primary/20 to-primary/5 text-primary'}`}>
                                   {child.photo ? (
                                     <img src={child.photo} alt={child.name} className="w-full h-full object-cover" />
                                   ) : child.name.charAt(0)}

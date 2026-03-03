@@ -14,7 +14,6 @@ import {
   RefreshCw,
   ShieldCheck,
   Smartphone,
-  UserPlus,
   Users
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
@@ -88,7 +87,7 @@ export default function LandingPage() {
               className="w-full h-auto object-cover"
               priority
             />
-            <div className="absolute inset-0 bg-linear-to-t from-black/30 via-transparent to-transparent"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent"></div>
           </motion.div>
         </div>
       </section>
