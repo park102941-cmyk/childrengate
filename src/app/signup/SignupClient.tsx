@@ -53,7 +53,13 @@ function SignupContent() {
       try {
         const result = await getRedirectResult(auth);
         if (result) {
-          handleUserPostSignup(result.user);
+          const savedType = localStorage.getItem("kg_signup_type") as "parent" | "institution";
+          if (savedType) {
+            setUserType(savedType);
+            handleUserPostSignup(result.user, savedType);
+          } else {
+            handleUserPostSignup(result.user, userType);
+          }
         }
       } catch (err: any) {
         console.error("Signup redirect result error:", err);
@@ -63,9 +69,10 @@ function SignupContent() {
     checkRedirect();
   }, [searchParams]);
 
-  const handleUserPostSignup = async (user: any) => {
+  const handleUserPostSignup = async (user: any, preferredType?: "parent" | "institution") => {
     try {
       if (!db) return;
+      const currentType = preferredType || userType;
       const userDocRef = doc(db, "users", user.uid);
       const userDocSnap = await getDoc(userDocRef);
 
@@ -79,7 +86,7 @@ function SignupContent() {
          return;
       }
 
-      if (userType === "institution") {
+      if (currentType === "institution") {
         const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
         const institutionId = `KG-${randomStr}`;
         
@@ -116,6 +123,7 @@ function SignupContent() {
       setLoading(false);
     }
   };
+
 
 
   const [loading, setLoading] = useState(false);
@@ -224,6 +232,10 @@ function SignupContent() {
     try {
       if (!auth || !db) throw new Error("Firebase is not initialized");
       const provider = new GoogleAuthProvider();
+      
+      // Save userType to survive the redirect
+      localStorage.setItem("kg_signup_type", userType);
+      
       await signInWithRedirect(auth, provider);
     } catch (err: unknown) {
       console.error("Google Signup error:", err);
@@ -232,6 +244,7 @@ function SignupContent() {
       setLoading(false);
     }
   };
+
 
 
   return (

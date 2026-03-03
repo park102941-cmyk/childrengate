@@ -35,7 +35,14 @@ export default function LoginPage() {
       try {
         const result = await getRedirectResult(auth);
         if (result) {
-          handleUserPostLogin(result.user);
+          // Recover userType from localStorage if it was saved before redirect
+          const savedType = localStorage.getItem("kg_login_type") as "parent" | "institution";
+          if (savedType) {
+            setUserType(savedType);
+            handleUserPostLogin(result.user, savedType);
+          } else {
+            handleUserPostLogin(result.user, userType);
+          }
         }
       } catch (err: any) {
         console.error("Redirect login result error:", err);
@@ -47,18 +54,19 @@ export default function LoginPage() {
     checkRedirectResult();
   }, []);
 
-  const handleUserPostLogin = async (user: any) => {
+  const handleUserPostLogin = async (user: any, preferredType?: "parent" | "institution") => {
     try {
       if (!db) return;
+      const currentType = preferredType || userType;
       const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
       
-      const expectedRole = userType === "institution" ? "admin" : "parent";
+      const expectedRole = currentType === "institution" ? "admin" : "parent";
 
       if (userDoc.exists()) {
          const userData = userDoc.data();
          if (userData.role !== expectedRole) {
-            if (userType === "institution" && userData.role === "staff") {
+            if (currentType === "institution" && userData.role === "staff") {
                // Allow
             } else {
                await auth?.signOut();
@@ -71,6 +79,7 @@ export default function LoginPage() {
            router.push(`/p/${userData.institutionId}`);
          }
       } else {
+          // ... (existing auto-create logic)
           const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
           const newInstId = `KG-${randomStr}`;
           const finalInstId = expectedRole === "admin" ? newInstId : "";
@@ -102,6 +111,7 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
 
 
 
@@ -210,6 +220,9 @@ export default function LoginPage() {
       if (!auth || !db) throw new Error("Firebase auth not ready");
       const provider = new GoogleAuthProvider();
       
+      // Save userType to localStorage to survive the redirect
+      localStorage.setItem("kg_login_type", userType);
+      
       // Use redirect instead of popup for better compatibility on mobile/embedded browsers
       await signInWithRedirect(auth, provider);
     } catch (err: unknown) {
@@ -219,6 +232,7 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
 
 
   return (
