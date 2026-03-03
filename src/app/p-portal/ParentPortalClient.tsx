@@ -21,8 +21,6 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
   const [showAddChild, setShowAddChild] = useState(false);
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [hasDismissedInitialModal, setHasDismissedInitialModal] = useState(false);
-  const [showChatbot, setShowChatbot] = useState(false);
-  const [membershipType, setMembershipType] = useState<"free" | "pro">("free");
   const [copied, setCopied] = useState(false);
 
   const handleCopyInvite = () => {
@@ -32,7 +30,7 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
     setTimeout(() => setCopied(false), 2000);
     alert("초대 링크가 복사되었습니다! 카톡이나 문자로 배우자 또는 가족에게 전달해 주세요.");
   };
-  const [showProModal, setShowProModal] = useState(false);
+
 
   interface Child {
     id: string;
@@ -120,24 +118,54 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
     }
   };
 
-  const handleBatchDropOff = () => {
+  const handleBatchDropOff = async () => {
     // If no children selected, apply to all absent.
     const targets = selectedChildren.length > 0 
       ? children.filter(c => selectedChildren.includes(c.id) && c.status === "absent")
       : children.filter(c => c.status === "absent");
       
     if (targets.length === 0) {
-      alert("현재 등교 가능한 자녀가 없습니다. ㅠㅠ");
+      alert("현재 등교 가능한 자녀가 없습니다. 자녀를 먼저 선택해 주세요.");
       return;
     }
-    
-    setChildren(children.map(c => 
-      targets.some(t => t.id === c.id) ? { ...c, status: "present", checkIn: new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}) } : c
-    ));
-    setSelectedChildren([]);
-    setMemo("");
-    alert("🚀 등교(Drop-off) 처리가 완료되었습니다!");
+
+    if (!confirm(`${targets.map(t => t.name).join(", ")} 아이의 등교를 확인하시겠습니까? 확인 즉시 이름표가 출력됩니다.`)) {
+      return;
+    }
+
+    try {
+      if (!db) throw new Error("Firebase database not initialized");
+
+      for (const child of targets) {
+        // 1. Create check-in log in Firestore
+        await addDoc(collection(db, "checkin_logs"), {
+          studentId: child.id,
+          studentName: child.name,
+          className: child.class,
+          parentName: "보호자",
+          timestamp: serverTimestamp(),
+          institutionId: instId,
+          type: "qr_portal"
+        });
+
+        // 2. Trigger printing simulation
+        console.log(`Printing nametag for ${child.name}...`);
+      }
+
+      setChildren(children.map(c => 
+        targets.some(t => t.id === c.id) ? { ...c, status: "present", checkIn: new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'}) } : c
+      ));
+      setSelectedChildren([]);
+      setMemo("");
+      
+      alert("🚀 등교 확인이 완료되었습니다! 이름표 출력을 시작합니다.");
+      // In a real app, this could call a Bluetooth printer API or window.print()
+    } catch (error) {
+      console.error("Error confirming drop-off:", error);
+      alert("처리 중 오류가 발생했습니다.");
+    }
   };
+
 
   const handleBatchPickUp = async () => {
     // If no children selected, apply to all present.
@@ -146,9 +174,14 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
       : children.filter(c => c.status === "present");
 
     if (targets.length === 0) {
-      alert("현재 하교 가능한 자녀가 없습니다. ㅠㅠ");
+      alert("현재 하교 가능한 자녀가 없습니다. 자녀를 먼저 선택해 주세요.");
       return;
     }
+
+    if (!confirm(`${targets.map(t => t.name).join(", ")} 아이의 하교 요청을 보내시겠습니까?`)) {
+      return;
+    }
+
 
     try {
       if (!db) throw new Error("Firebase database not initialized");
@@ -309,9 +342,7 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
             >
                {copied ? <Check size={18} /> : <Share2 size={18} />}
             </button>
-            {membershipType === "pro" && (
-              <span className="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-1 rounded-full border border-amber-200 uppercase tracking-tighter">PRO</span>
-            )}
+
             <button className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-black/50 overflow-hidden border border-black/5">
                <User size={18} />
             </button>
@@ -345,26 +376,7 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
             ) : (
                <div className="space-y-6">
                 
-                {membershipType === "free" && (
-                  <motion.button 
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowProModal(true)}
-                    className="w-full p-4 bg-gradient-to-tr from-black to-gray-800 rounded-3xl text-left relative overflow-hidden group shadow-xl"
-                  >
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-white/20 transition-all"></div>
-                    <div className="flex items-center justify-between relative z-10">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <Sparkles className="text-amber-400" size={16} />
-                          <span className="text-xs font-black text-amber-400 uppercase tracking-widest">Upgrade to Pro</span>
-                        </div>
-                        <p className="text-sm font-bold text-white">AI 아이 성장 리포트와 프리미엄 서비스를 시작하세요</p>
-                      </div>
-                      <ChevronRight className="text-white/30" />
-                    </div>
-                  </motion.button>
-                )}
+
 
                 {/* 1. Main Control Panel (Drop Off / Pick Up) -- THIS IS THE PRIORITY UI */}
                 <div className="bg-white rounded-[40px] p-6 shadow-2xl border border-primary/20 bg-gradient-to-tr from-white to-primary/5 relative overflow-hidden">
@@ -541,40 +553,7 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
               </div>
             )}
  
-            {/* Pro Items Section */}
-            <div className="grid grid-cols-2 gap-4 pt-4">
-              <button 
-                onClick={() => membershipType === "pro" ? alert("리포트 준비 중...") : setShowProModal(true)}
-                className="bg-white p-5 rounded-[32px] border border-black/5 shadow-sm text-left relative overflow-hidden group"
-              >
-                <div className="w-10 h-10 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 mb-3 group-hover:scale-110 transition-transform">
-                  <TrendingUp size={20} />
-                </div>
-                <h4 className="font-black text-sm text-black mb-1">성장 대시보드</h4>
-                <p className="text-[10px] text-black/40 font-bold">아이의 활동 통계</p>
-                {membershipType === "free" && (
-                  <div className="absolute top-4 right-4 text-black/20">
-                    <Lock size={14} />
-                  </div>
-                )}
-              </button>
 
-              <button 
-                onClick={() => membershipType === "pro" ? alert("갤러리 준비 중...") : setShowProModal(true)}
-                className="bg-white p-5 rounded-[32px] border border-black/5 shadow-sm text-left relative overflow-hidden group"
-              >
-                <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 mb-3 group-hover:scale-110 transition-transform">
-                  <ImageIcon size={20} />
-                </div>
-                <h4 className="font-black text-sm text-black mb-1">프리미엄 갤러리</h4>
-                <p className="text-[10px] text-black/40 font-bold">고화질 무제한 저장</p>
-                {membershipType === "free" && (
-                  <div className="absolute top-4 right-4 text-black/20">
-                    <Lock size={14} />
-                  </div>
-                )}
-              </button>
-            </div>
           </motion.div>
         )}
 
@@ -616,81 +595,7 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
 
       </main>
 
-      {/* Chatbot Toggle Button */}
-      {!showChatbot && (
-        <button 
-          onClick={() => setShowChatbot(true)}
-          className="fixed bottom-24 right-6 w-14 h-14 bg-black text-white rounded-full shadow-2xl flex items-center justify-center z-40 active:scale-90 transition-transform"
-        >
-          <MessageSquare size={24} />
-          <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-bounce"></div>
-        </button>
-      )}
 
-      {/* Chatbot Window */}
-      <AnimatePresence>
-        {showChatbot && (
-          <motion.div 
-            initial={{ opacity: 0, y: 100, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 100, scale: 0.8 }}
-            className="fixed bottom-6 right-6 left-6 max-w-sm ml-auto bg-white rounded-[32px] shadow-[0_32px_128px_rgba(0,0,0,0.2)] z-60 overflow-hidden border border-black/5"
-          >
-            <div className="bg-black p-6 text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                  <span className="font-black text-white">AI</span>
-                </div>
-                <div>
-                  <h3 className="font-black text-sm text-white">칠드런 게이트 도우미</h3>
-                  <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">Always Online</p>
-                </div>
-              </div>
-              <button onClick={() => setShowChatbot(false)} className="text-white/30 hover:text-white transition-colors">
-                <XCircle size={24} />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4 max-h-[400px] overflow-y-auto bg-gray-50/50">
-              <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-black/5 shadow-sm max-w-[85%]">
-                <p className="text-sm font-medium text-black">안녕하세요! 무엇을 도와드릴까요? 등하교 관리, 프로그램 문의 등 궁금한 점을 클릭해 보세요.</p>
-              </div>
-              
-              <div className="grid grid-cols-1 gap-2">
-                <button 
-                  onClick={() => alert("등하교는 홈 화면의 등하교 확인 버튼을 통해 하실 수 있습니다.")}
-                  className="bg-white p-3 rounded-xl border border-black/5 text-xs font-bold text-black/60 hover:bg-black hover:text-white transition-all text-left"
-                >
-                  🚗 등하교 방법이 궁금해요
-                </button>
-                <button 
-                  onClick={() => alert("알림장 탭을 통해 선생님의 메시지를 확인하실 수 있습니다.")}
-                  className="bg-white p-3 rounded-xl border border-black/5 text-xs font-bold text-black/60 hover:bg-black hover:text-white transition-all text-left"
-                >
-                  📝 알림장은 어디서 보나요?
-                </button>
-                <a 
-                  href="mailto:onchurchtx@gmail.com"
-                  className="bg-primary/5 p-3 rounded-xl border border-primary/20 text-xs font-bold text-primary hover:bg-primary hover:text-white transition-all text-left block"
-                >
-                  ✉️ 이메일로 직접 문의하기
-                </a>
-              </div>
-            </div>
-            
-            <div className="p-4 bg-white border-t border-black/5 flex items-center gap-2">
-              <input 
-                type="text" 
-                placeholder="메시지를 입력하세요..."
-                className="flex-1 bg-gray-50 border-none rounded-xl px-4 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-primary"
-              />
-              <button className="w-8 h-8 bg-black text-white rounded-lg flex items-center justify-center">
-                <ChevronRight size={18} />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Bottom Navigation */}
       <nav className="bg-white border-t border-black/5 fixed bottom-0 w-full max-w-md pb-safe">
@@ -841,89 +746,7 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
       )}
       </AnimatePresence>
 
-      {/* Pro Plan Modal */}
-      <AnimatePresence>
-        {showProModal && (
-          <div className="fixed inset-0 z-100 flex items-center justify-center p-6 sm:p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-md"
-              onClick={() => setShowProModal(false)}
-            />
-            <motion.div 
-              initial={{ opacity: 0, y: 100, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 100, scale: 0.9 }}
-              className="bg-white w-full max-w-sm rounded-[44px] overflow-hidden shadow-2xl relative z-110"
-            >
-              <div className="bg-linear-to-br from-indigo-600 to-indigo-800 p-8 text-white relative">
-                <div className="absolute top-6 right-6">
-                  <button onClick={() => setShowProModal(false)} className="text-white/40 hover:text-white">
-                    <XCircle size={28} />
-                  </button>
-                </div>
-                <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center mb-4">
-                  <Sparkles size={28} className="text-amber-400" />
-                </div>
-                <h2 className="text-2xl font-black mb-1">칠드런 게이트 PRO</h2>
-                <p className="text-white/60 font-bold text-sm tracking-tight">아이의 일상을 더 깊게, 안전하게.</p>
-              </div>
-              
-              <div className="p-8 space-y-6">
-                <div className="space-y-5">
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
-                      <Bot size={20} />
-                    </div>
-                    <div>
-                      <h4 className="font-black text-sm text-black">AI 성장 분석 리포트</h4>
-                      <p className="text-xs text-black/40 font-medium">활동 데이터를 기반으로 아이의 발달 단계를 분석합니다.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
-                      <ImageIcon size={20} />
-                    </div>
-                    <div>
-                      <h4 className="font-black text-sm text-black">고화질 무제한 갤러리</h4>
-                      <p className="text-xs text-black/40 font-medium">용량 제한 없는 고화질 사진 및 영상 자동 저장 서비스를 제공합니다.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
-                      <ShieldCheck size={20} />
-                    </div>
-                    <div>
-                      <h4 className="font-black text-sm text-black">안심 등하교 알림 고도화</h4>
-                      <p className="text-xs text-black/40 font-medium">차량 도착 예상 시간 및 안전 수칙 실시간 리마인드를 제공합니다.</p>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="pt-4">
-                  <div className="flex items-baseline gap-2 mb-4 justify-center">
-                    <span className="text-3xl font-black text-black">₩9,900</span>
-                    <span className="text-black/30 font-bold">/ 월</span>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setMembershipType("pro");
-                      setShowProModal(false);
-                      alert("프로 멤버십 승급이 완료되었습니다! 🚀");
-                    }}
-                    className="w-full py-5 bg-black text-white font-black rounded-3xl shadow-xl shadow-black/20 active:scale-95 transition-transform"
-                  >
-                    지금 시작하기
-                  </button>
-                  <p className="text-center text-[10px] text-black/30 font-bold mt-4">7일간 무료 체험 후 결제가 진행됩니다.</p>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

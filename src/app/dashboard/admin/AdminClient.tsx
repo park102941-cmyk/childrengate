@@ -25,8 +25,13 @@ import {
   Phone,
   MessageSquare,
   Mail,
+  UserCheck,
+  ShieldCheck,
   type LucideIcon
 } from "lucide-react";
+import { db } from "@/lib/firebase";
+import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+
 
 interface Student {
   id: string;
@@ -73,12 +78,13 @@ export default function AdminDashboard() {
     }
   };
 
-  // Mock data for new widgets
-  const recentActivities = [
-    { id: 1, user: "김지우", action: "등교 확인", time: "2분 전", icon: Activity },
-    { id: 2, user: "이준서", action: "하교 요청", time: "5분 전", icon: Bell },
-    { id: 3, user: "박서현", action: "스티커 출력", time: "12분 전", icon: QrCode },
-  ];
+  // State for recent activities
+  const [activities, setActivities] = useState([
+    { id: "1", user: "김지우", action: "등교 확인", time: "2분 전", icon: Activity },
+    { id: "2", user: "이준서", action: "하교 요청", time: "5분 전", icon: Bell },
+    { id: "3", user: "박서현", action: "스티커 출력", time: "12분 전", icon: QrCode },
+  ]);
+
 
   const upcomingBirthdays = [
     { id: 1, name: "최하은", date: "내일", age: "5세" },
@@ -96,6 +102,31 @@ export default function AdminDashboard() {
         console.error("Failed to fetch students, using local state", err);
         setLoading(false);
       });
+
+    // Real-time listener for check-ins
+    if (!db) return;
+    const q = query(collection(db, "checkin_logs"), orderBy("timestamp", "desc"), limit(5));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const logs = snapshot.docs.map(doc => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          user: d.studentName,
+          action: "등교 확인됨",
+          time: d.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || "방금 전",
+          icon: UserCheck
+        };
+      });
+      if (logs.length > 0) {
+        setActivities(prev => {
+          const combined = [...logs, ...prev].slice(0, 10);
+          return combined;
+        });
+      }
+
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const filteredStudents = students.filter(s => 
@@ -132,25 +163,7 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      {/* Trial / Subscription Banner */}
-      <div className="bg-amber-50 rounded-3xl p-6 border-2 border-amber-200 shadow-md mb-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-2 h-full bg-amber-400"></div>
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
-             <CreditCard className="text-amber-600" size={24} />
-          </div>
-          <div>
-            <h3 className="text-lg font-black text-amber-900 leading-tight mb-1">2주간의 무료 체험이 곧 종료됩니다.</h3>
-            <p className="text-amber-700/80 text-sm font-bold">Children Gate 시스템을 계속 활용하시려면 요금제를 결제해 주세요.</p>
-          </div>
-        </div>
-        <button 
-           className="w-full md:w-auto px-8 py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl shadow-xl shadow-amber-500/20 active:scale-95 transition-all text-sm whitespace-nowrap"
-           onClick={() => alert("Stripe 결제 모듈 연동 예정 창")}
-        >
-           Stripe로 결제하기 (월 $9.99~)
-        </button>
-      </div>
+
 
       {/* Top Workflow Stats (Planning Center Style) */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
@@ -274,18 +287,23 @@ export default function AdminDashboard() {
                          </div>
                       </td>
                       <td className="px-8 py-6 text-right">
-                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button className="p-3 bg-white border border-black/5 hover:bg-gray-100 rounded-2xl text-black/40 hover:text-black transition-all shadow-sm" title="Print Nametag Label">
-                               <QrCode size={18} />
+                         <div className="flex items-center justify-end gap-2">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); alert("이름표 출력을 시작합니다."); }}
+                              className="px-4 py-2 bg-white border border-primary/20 hover:bg-primary/5 rounded-xl text-primary text-xs font-black transition-all shadow-sm flex items-center gap-2"
+                            >
+                               <QrCode size={14} />
+                               이름표 출력
                             </button>
                             <button 
                                onClick={(e) => handleDeleteStudent(e, student.id)}
-                               className="p-3 bg-white border border-black/5 hover:bg-red-50 rounded-2xl text-black/40 hover:text-red-500 transition-all shadow-sm"
+                               className="p-2 bg-white border border-black/5 hover:bg-red-50 rounded-xl text-black/20 hover:text-red-500 transition-all"
                             >
-                               <Trash2 size={18} />
+                               <Trash2 size={16} />
                             </button>
                          </div>
                       </td>
+
                     </tr>
                   ))}
                 </tbody>
@@ -306,7 +324,7 @@ export default function AdminDashboard() {
                 <button className="text-xs font-black text-primary hover:underline">{t.dashboard.admin.widgets.viewAll}</button>
              </div>
              <div className="space-y-6">
-                {recentActivities.map(act => (
+                {(activities as any[]).map((act: any) => (
                    <div key={act.id} className="flex items-center gap-4 group cursor-pointer">
                       <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-black/5 flex items-center justify-center group-hover:bg-primary/5 transition-colors">
                          <act.icon size={20} className="text-primary" />
