@@ -3,14 +3,14 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
-import { QrCode, Plus, Calendar, Clock, MessageSquare, FileIcon, ChevronRight, User, ShieldCheck, Check, Car, AlertCircle, XCircle, Timer, LogIn, LogOut, Edit2, Phone, Mail, Lock, Sparkles, TrendingUp, ImageIcon, Bot, Share2 } from "lucide-react";
+import { QrCode, Plus, MessageSquare, FileIcon, ChevronRight, User, ShieldCheck, Check, AlertCircle, XCircle, Timer, LogIn, LogOut, Edit2, Phone, Mail, Lock, Sparkles, TrendingUp, ImageIcon, Bot, Share2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, getDoc, getDocs } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, where, doc, getDoc, getDocs } from "firebase/firestore";
 
 export default function ParentPortal({ portalId }: { portalId?: string }) {
-  const { t } = useLanguage();
+  const { language } = useLanguage();
   const searchParams = useSearchParams();
   const instId = portalId || searchParams?.get("id") || "";
 
@@ -112,7 +112,7 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
     }
   }, [children.length, activeTab, hasDismissedInitialModal, searchParams]);
 
-  const handleToggleSelect = (id: string, status: string) => {
+  const handleToggleSelect = (id: string) => {
     if (selectedChildren.includes(id)) {
       setSelectedChildren(selectedChildren.filter(c => c !== id));
     } else {
@@ -417,7 +417,7 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
                     return (
                       <div 
                         key={child.id} 
-                        onClick={() => handleToggleSelect(child.id, child.status)}
+                        onClick={() => handleToggleSelect(child.id)}
                         className={`bg-white rounded-[32px] p-6 border-2 transition-all relative overflow-hidden cursor-pointer active:scale-[0.98] ${isSelected ? 'border-primary shadow-lg shadow-primary/20' : 'border-black/5 shadow-sm'}`}
                       >
                          {isSelected && (

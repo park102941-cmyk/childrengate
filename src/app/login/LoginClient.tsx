@@ -13,7 +13,6 @@ import { useLanguage } from "@/context/LanguageContext";
 
 export default function LoginPage() {
   const { t, language, setLanguage } = useLanguage();
-  const searchParams = useSearchParams();
   const [userType, setUserType] = useState<"parent" | "institution">("parent");
   const [formData, setFormData] = useState({
     email: "",
