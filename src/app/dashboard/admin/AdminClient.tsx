@@ -91,6 +91,10 @@ export default function AdminDashboard() {
       .then(data => {
         if (Array.isArray(data)) setStudents(data);
         setLoading(false);
+      })
+      .catch(err => {
+        console.error("Failed to fetch students, using local state", err);
+        setLoading(false);
       });
   }, []);
 
