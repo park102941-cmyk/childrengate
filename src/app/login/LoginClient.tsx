@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "firebase/auth";
+import { useState, useEffect } from "react";
+import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc, setDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -13,6 +13,9 @@ import { useLanguage } from "@/context/LanguageContext";
 
 export default function LoginPage() {
   const { t, language, setLanguage } = useLanguage();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
   const [userType, setUserType] = useState<"parent" | "institution">("parent");
   const [formData, setFormData] = useState({
     email: "",
@@ -24,7 +27,83 @@ export default function LoginPage() {
   const [showReset, setShowReset] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetSent, setResetSent] = useState(false);
-  const router = useRouter();
+
+
+  useEffect(() => {
+    const checkRedirectResult = async () => {
+      if (!auth || !db) return;
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          handleUserPostLogin(result.user);
+        }
+      } catch (err: any) {
+        console.error("Redirect login result error:", err);
+        if (err.code !== 'auth/popup-closed-by-user') {
+          setError(err.message);
+        }
+      }
+    };
+    checkRedirectResult();
+  }, []);
+
+  const handleUserPostLogin = async (user: any) => {
+    try {
+      if (!db) return;
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+      
+      const expectedRole = userType === "institution" ? "admin" : "parent";
+
+      if (userDoc.exists()) {
+         const userData = userDoc.data();
+         if (userData.role !== expectedRole) {
+            if (userType === "institution" && userData.role === "staff") {
+               // Allow
+            } else {
+               await auth?.signOut();
+               throw new Error("선택하신 로그인 유형(학부모/기관)과 계정 권한이 일치하지 않습니다.");
+            }
+         }
+         if (userData.role === "admin" || userData.role === "staff") {
+           router.push("/dashboard/admin");
+         } else {
+           router.push(`/p/${userData.institutionId}`);
+         }
+      } else {
+          const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+          const newInstId = `KG-${randomStr}`;
+          const finalInstId = expectedRole === "admin" ? newInstId : "";
+
+          await setDoc(userDocRef, {
+            name: user.displayName || "Google User",
+            email: user.email,
+            role: expectedRole,
+            institutionId: finalInstId,
+            createdAt: new Date(),
+          });
+          
+          if (expectedRole === "admin") {
+            await setDoc(doc(db, "institutions", newInstId), {
+              name: "New Institution (Google)",
+              adminId: user.uid,
+              createdAt: new Date(),
+            });
+            router.push("/dashboard/admin");
+          } else {
+            if (!finalInstId) {
+                throw new Error("학부모 가입은 원에서 제공한 코드가 필요합니다. 가입 페이지에서 코드를 입력해 주세요.");
+            }
+            router.push(`/p/${finalInstId}`);
+          }
+      }
+    } catch (err: any) {
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+
+
 
   // Guest Access State
   const [showGuestForm, setShowGuestForm] = useState(false);
@@ -130,67 +209,17 @@ export default function LoginPage() {
     try {
       if (!auth || !db) throw new Error("Firebase auth not ready");
       const provider = new GoogleAuthProvider();
-      const userCredential = await signInWithPopup(auth, provider);
       
-      const userDocRef = doc(db, "users", userCredential.user.uid);
-      const userDoc = await getDoc(userDocRef);
-      
-      const expectedRole = userType === "institution" ? "admin" : "parent";
-
-      if (userDoc.exists()) {
-         const userData = userDoc.data();
-         if (userData.role !== expectedRole) {
-            if (userType === "institution" && userData.role === "staff") {
-               // Allow
-            } else {
-               await auth.signOut();
-               throw new Error("선택하신 로그인 유형(학부모/기관)과 계정 권한이 일치하지 않습니다.");
-            }
-         }
-         if (userData.role === "admin" || userData.role === "staff") {
-           router.push("/dashboard/admin");
-         } else {
-           router.push(`/p/${userData.institutionId}`);
-         }
-      } else {
-         // Auto-create user doc via Google Login
-          const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
-          const newInstId = `KG-${randomStr}`;
-          const finalInstId = expectedRole === "admin" ? newInstId : ""; // Parent needs code
-
-          await setDoc(userDocRef, {
-            name: userCredential.user.displayName || "Google User",
-            email: userCredential.user.email,
-            role: expectedRole,
-            institutionId: finalInstId,
-            createdAt: new Date(),
-          });
-          
-          if (expectedRole === "admin") {
-            await setDoc(doc(db, "institutions", newInstId), {
-              name: "New Institution (Google)",
-              adminId: userCredential.user.uid,
-              createdAt: new Date(),
-            });
-            router.push("/dashboard/admin");
-          } else {
-            // If they are a parent but don't have a doc, they shouldn't be auto-created without an institutionId.
-            // For now, redirect to a setup or just error.
-            if (!finalInstId) {
-                throw new Error("학부모 가입은 원에서 제공한 코드가 필요합니다. 가입 페이지에서 코드를 입력해 주세요.");
-            }
-            router.push(`/p/${finalInstId}`);
-          }
-
-      }
+      // Use redirect instead of popup for better compatibility on mobile/embedded browsers
+      await signInWithRedirect(auth, provider);
     } catch (err: unknown) {
       console.error("Google Login error:", err);
       const errorMessage = err instanceof Error ? err.message : t.auth.errorLogin;
       setError(errorMessage);
-    } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 relative">

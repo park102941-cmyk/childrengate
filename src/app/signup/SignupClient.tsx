@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
@@ -47,7 +47,76 @@ function SignupContent() {
     if (type === "institution") {
       setUserType("institution");
     }
+
+    const checkRedirect = async () => {
+      if (!auth || !db) return;
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          handleUserPostSignup(result.user);
+        }
+      } catch (err: any) {
+        console.error("Signup redirect result error:", err);
+        setError(err.message);
+      }
+    };
+    checkRedirect();
   }, [searchParams]);
+
+  const handleUserPostSignup = async (user: any) => {
+    try {
+      if (!db) return;
+      const userDocRef = doc(db, "users", user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (userDocSnap.exists()) {
+         const userData = userDocSnap.data();
+         if (userData.role === "admin") {
+           router.push("/dashboard/admin");
+         } else {
+           router.push(`/p/${userData.institutionId}`);
+         }
+         return;
+      }
+
+      if (userType === "institution") {
+        const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const institutionId = `KG-${randomStr}`;
+        
+        await setDoc(doc(db, "institutions", institutionId), {
+          name: formData.institutionName || "New Institution (Google)",
+          type: formData.instType,
+          studentCount: formData.studentCount,
+          adminId: user.uid,
+          createdAt: new Date(),
+        });
+
+        await setDoc(doc(db, "users", user.uid), {
+          name: user.displayName || "Google Admin",
+          email: user.email,
+          role: "admin",
+          institutionId: institutionId,
+          createdAt: new Date(),
+        });
+        router.push("/dashboard/admin");
+      } else {
+        await setDoc(doc(db, "users", user.uid), {
+          name: user.displayName || "Google Parent",
+          email: user.email,
+          role: "parent",
+          institutionId: formData.instCode,
+          phone: formData.contact || "",
+          relationship: formData.relationship,
+          createdAt: new Date(),
+        });
+        router.push(`/p/${formData.instCode}`);
+      }
+    } catch (err: any) {
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -154,64 +223,16 @@ function SignupContent() {
     setError("");
     try {
       if (!auth || !db) throw new Error("Firebase is not initialized");
-
       const provider = new GoogleAuthProvider();
-      const userCredential = await signInWithPopup(auth, provider);
-      const user = userCredential.user;
-
-      const userDocRef = doc(db, "users", user.uid);
-      const userDocSnap = await getDoc(userDocRef);
-
-      if (userDocSnap.exists()) {
-         const userData = userDocSnap.data();
-         if (userData.role === "admin") {
-           router.push("/dashboard/admin");
-         } else {
-           router.push(`/p/${userData.institutionId}`);
-         }
-         return;
-      }
-
-      if (userType === "institution") {
-        const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
-        const institutionId = `KG-${randomStr}`;
-        
-        await setDoc(doc(db, "institutions", institutionId), {
-          name: formData.institutionName || "New Institution (Google)",
-          type: formData.instType,
-          studentCount: formData.studentCount,
-          adminId: user.uid,
-          createdAt: new Date(),
-        });
-
-        await setDoc(doc(db, "users", user.uid), {
-          name: user.displayName || "Google Admin",
-          email: user.email,
-          role: "admin",
-          institutionId: institutionId,
-          createdAt: new Date(),
-        });
-        router.push("/dashboard/admin");
-      } else {
-        await setDoc(doc(db, "users", user.uid), {
-          name: user.displayName || "Google Parent",
-          email: user.email,
-          role: "parent",
-          institutionId: formData.instCode,
-          phone: formData.contact || "",
-          relationship: formData.relationship,
-          createdAt: new Date(),
-        });
-        router.push(`/p/${formData.instCode}`);
-      }
+      await signInWithRedirect(auth, provider);
     } catch (err: unknown) {
       console.error("Google Signup error:", err);
       const errorMessage = err instanceof Error ? err.message : (t.auth as any).errorSignup;
       setError(errorMessage);
-    } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 relative">
