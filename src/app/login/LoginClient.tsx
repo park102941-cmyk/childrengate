@@ -1,128 +1,135 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, sendPasswordResetEmail } from "firebase/auth";
-import { doc, getDoc, setDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { useState, useEffect, useRef } from "react";
+import { 
+  signInWithEmailAndPassword, 
+  onAuthStateChanged, 
+  setPersistence, 
+  browserLocalPersistence, 
+  browserSessionPersistence, 
+  GoogleAuthProvider, 
+  signInWithRedirect, 
+  getRedirectResult, 
+  sendPasswordResetEmail,
+  User,
+  signInWithPopup
+} from "firebase/auth";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { ShieldCheck, Mail, Lock, ArrowRight, Globe, X, CheckCircle2 } from "lucide-react";
-
+import { motion, AnimatePresence } from "framer-motion";
+import { Mail, Lock, ArrowRight, Globe, X, CheckCircle2, UserCircle2 } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
   const { t, language, setLanguage } = useLanguage();
-  const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   
   const [userType, setUserType] = useState<"parent" | "institution">("parent");
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
-  const [rememberMe, setRememberMe] = useState(true);
+
+  // Sync tab with URL parameter on mount
+  useEffect(() => {
+    const typeParam = searchParams?.get("type");
+    if (typeParam === "institution") setUserType("institution");
+    else if (typeParam === "parent") setUserType("parent");
+  }, [searchParams]);
+
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showReset, setShowReset] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetSent, setResetSent] = useState(false);
 
+  const redirectStarted = useRef(false);
 
-  useEffect(() => {
-    const checkRedirectResult = async () => {
-      if (!auth || !db) return;
-      try {
-        const result = await getRedirectResult(auth);
-        if (result) {
-          // Recover userType from localStorage if it was saved before redirect
-          const savedType = localStorage.getItem("kg_login_type") as "parent" | "institution";
-          if (savedType) {
-            setUserType(savedType);
-            handleUserPostLogin(result.user, savedType);
-          } else {
-            handleUserPostLogin(result.user, userType);
-          }
-        }
-      } catch (err: any) {
-        console.error("Redirect login result error:", err);
-        if (err.code !== 'auth/popup-closed-by-user') {
-          setError(err.message);
-        }
-      }
-    };
-    checkRedirectResult();
-  }, []);
+  // Cross-role routing logic
+  const handleUserPostLogin = async (firebaseUser: User, preferredType?: "parent" | "institution") => {
+    if (!firebaseUser || !db || redirectStarted.current) return;
 
-  const handleUserPostLogin = async (user: any, preferredType?: "parent" | "institution") => {
     try {
-      if (!db) return;
-      const currentType = preferredType || userType;
-      const userDocRef = doc(db, "users", user.uid);
+      setLoading(true);
+      redirectStarted.current = true;
+      setError("");
+      
+      const userDocRef = doc(db, "users", firebaseUser.uid);
       const userDoc = await getDoc(userDocRef);
       
-      const expectedRole = currentType === "institution" ? "admin" : "parent";
-
       if (userDoc.exists()) {
          const userData = userDoc.data();
-         if (userData.role !== expectedRole) {
-            if (currentType === "institution" && userData.role === "staff") {
-               // Allow
-            } else {
-               await auth?.signOut();
-               throw new Error("선택하신 로그인 유형(학부모/기관)과 계정 권한이 일치하지 않습니다.");
-            }
-         }
-         if (userData.role === "admin" || userData.role === "staff") {
-           router.push("/dashboard/admin");
+         // Prioritize actual role
+         if (userData.role === "admin" || userData.role === "staff" || userData.role === "teacher") {
+             console.log("Redirecting to Admin Dashboard");
+             window.location.href = "/dashboard/admin";
          } else {
-           router.push(`/p/${userData.institutionId}`);
+             console.log("Redirecting to Parent Portal");
+             const targetPortal = userData.institutionId ? `/p-portal?id=${userData.institutionId}` : "/p-portal";
+             window.location.href = targetPortal;
          }
       } else {
-          // ... (existing auto-create logic)
-          const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
-          const newInstId = `KG-${randomStr}`;
-          const finalInstId = expectedRole === "admin" ? newInstId : "";
-
-          await setDoc(userDocRef, {
-            name: user.displayName || "Google User",
-            email: user.email,
-            role: expectedRole,
-            institutionId: finalInstId,
-            createdAt: new Date(),
+          // New user (Google/New Email)
+          const currentType = preferredType || userType;
+          const roleToAssign = currentType === "institution" ? "admin" : "parent";
+          await setDoc(userDocRef, { 
+            name: firebaseUser.displayName || "User", 
+            email: firebaseUser.email, 
+            role: roleToAssign, 
+            createdAt: serverTimestamp() 
           });
-          
-          if (expectedRole === "admin") {
-            await setDoc(doc(db, "institutions", newInstId), {
-              name: "New Institution (Google)",
-              adminId: user.uid,
-              createdAt: new Date(),
-            });
-            router.push("/dashboard/admin");
-          } else {
-            if (!finalInstId) {
-                throw new Error("학부모 가입은 원에서 제공한 코드가 필요합니다. 가입 페이지에서 코드를 입력해 주세요.");
-            }
-            router.push(`/p/${finalInstId}`);
-          }
+          window.location.href = roleToAssign === "admin" ? "/dashboard/admin" : "/p-portal";
       }
     } catch (err: any) {
-      setError(err.message);
+      console.error("Redirection Failed:", err);
+      setError(`로그인 처리 중 오류 발생: ${err.message}`);
       setLoading(false);
+      redirectStarted.current = false;
     }
   };
 
+  useEffect(() => {
+    if (!auth) return;
 
+    // 1. Handle Google Redirect Result
+    const checkRedirect = async () => {
+      try {
+        if (!auth) return;
+        const result = await getRedirectResult(auth);
+        if (result?.user && !redirectStarted.current) {
+          console.log("Google Redirect Result Success");
+          const savedType = localStorage.getItem("kg_login_type") as "parent" | "institution" | null;
+          handleUserPostLogin(result.user, savedType || undefined);
+        }
+      } catch (err: any) {
+        console.error("Redirect Result error:", err);
+        setError("Google 로그인에 실패했습니다. (Redirect)");
+      }
+    };
+    checkRedirect();
 
+    // 2. Auth State Change (Auto-login)
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      // Don't auto-login if they just logged out
+      if (searchParams?.get("logout") === "true") {
+        console.log("Ignoring auto-login due to explicit logout");
+        return;
+      }
 
-  // Guest Access State
-  const [showGuestForm, setShowGuestForm] = useState(false);
-  const [guestData, setGuestData] = useState({
-    studentName: "",
-    grade: "",
-    parentName: "",
-    phoneNumber: "",
-  });
+      if (firebaseUser && !loading && !redirectStarted.current) {
+        // Only auto-login if the user opted in or if we trust the session
+        const isAutoLoginEnabled = localStorage.getItem("kg_auto_login") === "true";
+        if (isAutoLoginEnabled) {
+          handleUserPostLogin(firebaseUser);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [loading, searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,43 +137,44 @@ export default function LoginPage() {
     setError("");
 
     try {
-      if (!auth || !db) {
-        throw new Error("Firebase auth is not initialized");
-      }
-
+      if (!auth) throw new Error("Auth not ready");
       const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
       await setPersistence(auth, persistenceType);
 
+      if (rememberMe) localStorage.setItem("kg_auto_login", "true");
+      else localStorage.removeItem("kg_auto_login");
+
       const userCredential = await signInWithEmailAndPassword(auth, formData.email, formData.password);
+      handleUserPostLogin(userCredential.user, userType);
+    } catch (err: any) {
+      setError("이메일 또는 비밀번호가 올바르지 않습니다.");
+      setLoading(false);
+      redirectStarted.current = false;
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      if (!auth) return;
+      setLoading(true);
+      setError("");
+      localStorage.setItem("kg_login_type", userType);
       
-      const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        const expectedRole = userType === "institution" ? "admin" : "parent";
-        
-        if (userData.role !== expectedRole) {
-           if (userType === "institution" && userData.role === "staff") {
-               // Allow staff to login via institution tab
-           } else {
-               await auth.signOut();
-               throw new Error("선택하신 로그인 유형(학부모/기관)과 계정 권한이 일치하지 않습니다.");
-           }
-        }
-        
-        if (userData.role === "admin" || userData.role === "staff") {
-          router.push("/dashboard/admin");
+      const provider = new GoogleAuthProvider();
+      // Use popup for desktop, redirect for mobile? Or just popup and handle blocked.
+      try {
+        const result = await signInWithPopup(auth, provider);
+        handleUserPostLogin(result.user, userType);
+      } catch (popupErr: any) {
+        console.warn("Popup blocked or failed, trying redirect...", popupErr);
+        if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-by-user') {
+          await signInWithRedirect(auth, provider);
         } else {
-          router.push(`/p/${userData.institutionId}`);
+          throw popupErr;
         }
-      } else {
-         await auth.signOut();
-         throw new Error("사용자 정보를 찾을 수 없습니다.");
       }
-    } catch (err: unknown) {
-      console.error("Login error:", err);
-      const errorMessage = err instanceof Error ? err.message : t.auth.errorLogin;
-      setError(errorMessage);
-    } finally {
+    } catch (err: any) {
+      setError("구글 로그인 중 오류가 발생했습니다.");
       setLoading(false);
     }
   };
@@ -174,402 +182,131 @@ export default function LoginPage() {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
     try {
-      if (!auth) throw new Error("Firebase auth not ready");
+      if (!auth) return;
       await sendPasswordResetEmail(auth, resetEmail);
       setResetSent(true);
-    } catch (err: unknown) {
-      console.error("Reset password error:", err);
-      setError(t.auth.errorReset);
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGuestSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      if (!db) throw new Error("Database not ready");
-      
-      const docRef = await addDoc(collection(db, "guests"), {
-        ...guestData,
-        institutionId: "KG-GUEST", // Or keep as is if we want a common guest pool, but better to use a placeholder or remove it
-        createdAt: serverTimestamp(),
-        type: "guest"
-      });
-
-      // Simulation of SMS sending
-      alert(`[SMS 시뮬레이션] ${guestData.phoneNumber} 번호로 접속 링크가 전송되었습니다.`);
-      
-      router.push(`/p-portal?guestId=${docRef.id}`);
-    } catch (err: unknown) {
-      console.error("Guest access error:", err);
-      setError("게스트 등록 중 오류가 발생했습니다.");
-    } finally {
-      setLoading(false);
-    }
+  const handleGuestLogin = () => {
+    router.push("/p-portal?guestId=guest");
   };
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      if (!auth || !db) throw new Error("Firebase auth not ready");
-      const provider = new GoogleAuthProvider();
-      
-      // Save userType to localStorage to survive the redirect
-      localStorage.setItem("kg_login_type", userType);
-      
-      // Use redirect instead of popup for better compatibility on mobile/embedded browsers
-      await signInWithRedirect(auth, provider);
-    } catch (err: unknown) {
-      console.error("Google Login error:", err);
-      const errorMessage = err instanceof Error ? err.message : t.auth.errorLogin;
-      setError(errorMessage);
-      setLoading(false);
-    }
-  };
-
-
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 relative">
-      <div className="absolute top-6 right-6">
-        <button 
-          onClick={() => setLanguage(language === "ko" ? "en" : "ko")}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-white border-black/10 text-xs font-bold hover:bg-black/5 transition-all text-black shadow-sm"
-        >
-          <Globe size={14} className="text-primary" />
-          {language === "ko" ? "EN" : "KO"}
-        </button>
-      </div>
-      <div className="w-full max-w-md">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-[40px] p-10 md:p-12 shadow-2xl shadow-black/5 border border-black/5"
-        >
-          <div className="text-center mb-10">
-            <div className="w-16 h-16 bg-white overflow-hidden rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-black/5 border border-black/5">
-              <img src="/children_gate_logo.png" alt="Children Gate Logo" className="w-full h-full object-contain p-2" />
+      {(loading || authLoading) && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-white/80 backdrop-blur-md font-black">
+          잠시만 기다려 주세요...
+        </div>
+      )}
+      
+      <div className="w-full max-w-[480px] bg-white rounded-[48px] p-8 md:p-12 shadow-2xl border border-black/5">
+        <div className="mb-10 text-center">
+          <Link href="/" className="inline-block w-20 h-20 bg-white rounded-[24px] p-2 border border-black/[0.03] shadow-inner mb-6">
+            <img src="/children_gate_logo.png" alt="Logo" className="w-full h-full object-contain" />
+          </Link>
+          <h1 className="text-3xl font-black text-black mb-2">{t.auth.loginTitle}</h1>
+          <p className="text-black/40 font-bold">{t.auth.loginSubtitle}</p>
+        </div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 text-red-500 rounded-2xl flex items-center gap-3 border border-red-100">
+            <X size={18} />
+            <p className="text-xs font-bold leading-tight">{error}</p>
+          </div>
+        )}
+
+        <div className="flex bg-slate-100 p-1.5 rounded-[24px] mb-8">
+          <button onClick={() => setUserType("parent")} className={`flex-1 py-3.5 rounded-[20px] font-black transition-all ${userType === "parent" ? "bg-white text-black shadow-lg" : "text-black/30 hover:text-black/50"}`}>
+            {t.auth.tabParent}
+          </button>
+          <button onClick={() => setUserType("institution")} className={`flex-1 py-3.5 rounded-[20px] font-black transition-all ${userType === "institution" ? "bg-white text-black shadow-lg" : "text-black/30 hover:text-black/50"}`}>
+            {t.auth.tabInstitution}
+          </button>
+        </div>
+
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div className="relative group">
+            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+              <Mail className="h-5 w-5 text-black/20 group-focus-within:text-primary transition-colors" />
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-black mb-3">{t.auth.loginTitle}</h1>
-            <p className="text-black/60 font-medium">{t.auth.loginSubtitle}</p>
+            <input required type="email" placeholder={t.auth.email} value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="block w-full pl-14 pr-5 py-5 bg-slate-50 border-transparent focus:bg-white focus:ring-4 focus:ring-primary/10 rounded-[24px] font-bold text-black border-2 transition-all outline-none" />
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div className="flex p-1 bg-gray-100 rounded-2xl mb-8">
-              <button
-                type="button"
-                className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${userType === "parent" ? "bg-white text-primary shadow-sm" : "text-black/50 hover:text-black"}`}
-                onClick={() => setUserType("parent")}
-              >
-                {t.auth.tabParent}
-              </button>
-              <button
-                type="button"
-                className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${userType === "institution" ? "bg-white text-primary shadow-sm" : "text-black/50 hover:text-black"}`}
-                onClick={() => setUserType("institution")}
-              >
-                {t.auth.tabInstitution}
-              </button>
+          <div className="relative group">
+            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+              <Lock className="h-5 w-5 text-black/20 group-focus-within:text-primary transition-colors" />
             </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-black ml-1 flex items-center gap-2">
-                <Mail size={14} className="text-primary" /> {t.auth.email}
-              </label>
-              <input
-                type="email"
-                required
-                placeholder="admin@institution.com"
-                className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-black/20 text-black font-medium"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-black ml-1 flex items-center gap-2">
-                  <Lock size={14} className="text-primary" /> {t.auth.password}
-                </label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-black/20 text-black font-medium"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                />
-              </div>
-
-              <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="rememberMe"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 text-primary bg-slate-50 border-black/10 rounded focus:ring-primary focus:ring-2 accent-primary cursor-pointer"
-                  />
-                  <label htmlFor="rememberMe" className="text-sm font-bold text-black/60 cursor-pointer select-none">
-                    {t.auth.rememberMe || "자동 로그인 (스마트폰 기억하기)"}
-                  </label>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => {
-                    setShowReset(true);
-                    setResetEmail(formData.email);
-                    setError("");
-                  }}
-                  className="text-sm font-bold text-primary hover:underline underline-offset-4"
-                >
-                  {t.auth.forgotPassword}
-                </button>
-              </div>
-            </div>
-
-            {error && (
-              <p className="text-error text-sm font-bold text-center bg-error/10 py-3 rounded-xl">
-                {error}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-black text-white py-5 rounded-2xl text-lg font-bold hover:bg-black/90 transition-all shadow-xl shadow-black/10 flex items-center justify-center gap-2 mt-4"
-            >
-              {loading ? t.auth.loggingIn : (
-                <>
-                  {t.common.login} <ArrowRight size={20} />
-                </>
-              )}
-            </button>
-
-            <div className="relative flex items-center py-2">
-              <div className="grow border-t border-black/10"></div>
-              <span className="shrink-0 px-4 text-black/30 text-xs font-bold uppercase tracking-widest">OR</span>
-              <div className="grow border-t border-black/10"></div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={loading}
-              className="w-full bg-white border border-black/10 text-black py-4 rounded-2xl text-base font-bold hover:bg-gray-50 transition-all flex items-center justify-center gap-3 shadow-sm"
-            >
-              <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-              {t.auth.googleLogin || "Google 계정으로 계속하기"}
-            </button>
-
-            <p className="text-center text-black/50 text-sm font-medium mt-8">
-              {t.auth.noAccount}{" "}
-              <Link href="/signup" className="text-primary font-bold hover:underline underline-offset-4">
-                {t.common.signup}
-              </Link>
-            </p>
-
-            {/* Guest Continue Button */}
-            <div className="pt-4">
-              <button
-                type="button"
-                onClick={() => setShowGuestForm(true)}
-                className="w-full bg-emerald-50 text-emerald-700 py-4 rounded-2xl text-base font-bold hover:bg-emerald-100 transition-all flex items-center justify-center gap-2 border border-emerald-100"
-              >
-                🔒 {t.auth.guestContinue || "가입 없이 게스트로 계속하기"}
-              </button>
-            </div>
-          </form>
-        </motion.div>
-
-        <div className="mt-12 flex flex-col items-center gap-4">
-          <div className="flex items-center gap-6 text-[10px] font-black text-black/60 uppercase tracking-widest">
-            <Link href="/privacy" className="hover:text-primary transition-colors">{t.common.privacy}</Link>
-            <Link href="/terms" className="hover:text-primary transition-colors">{t.common.terms}</Link>
-            <a href="mailto:onchurchtx@gmail.com" className="hover:text-primary transition-colors">{t.common.contact}</a>
+            <input required type="password" placeholder={t.auth.password} value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="block w-full pl-14 pr-5 py-5 bg-slate-50 border-transparent focus:bg-white focus:ring-4 focus:ring-primary/10 rounded-[24px] font-bold text-black border-2 transition-all outline-none" />
           </div>
-          <p className="text-center text-black/40 text-[10px] font-bold tracking-tight">
-            &copy; 2026 Children Gate. All Rights Reserved.
+
+          <div className="flex items-center justify-between px-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-5 h-5 rounded-lg border-2 border-black/10 text-primary focus:ring-primary" />
+              <span className="text-sm font-bold text-black/40">{t.auth.rememberMe}</span>
+            </label>
+            <button type="button" onClick={() => setShowReset(true)} className="text-sm font-bold text-primary hover:underline">{t.auth.forgotPassword}</button>
+          </div>
+
+          <button type="submit" disabled={loading} className="w-full py-5 bg-black text-white font-black rounded-[24px] shadow-2xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 mt-4">
+            {loading ? t.auth.loggingIn : t.common.login}
+            <ArrowRight size={20} />
+          </button>
+        </form>
+
+        <div className="mt-8 space-y-4">
+          <button onClick={handleGoogleLogin} className="w-full py-5 bg-white border-2 border-slate-100 text-black font-black rounded-[24px] flex items-center justify-center gap-3 hover:bg-slate-50 transition-all">
+            <img src="/google_icon.png" alt="Google" className="w-6 h-6" />
+            {t.auth.googleLogin}
+          </button>
+          
+          {userType === "parent" && (
+            <button onClick={handleGuestLogin} className="w-full py-4 bg-slate-100 text-black/60 font-black rounded-[24px] flex items-center justify-center gap-3 hover:bg-slate-200 transition-all border-none">
+              <UserCircle2 size={20} />
+              {t.auth.guestContinue}
+            </button>
+          )}
+
+          <p className="text-center text-black/30 font-bold mt-6">
+            {t.auth.noAccount} <Link href="/signup" className="text-primary hover:underline">{t.auth.signupTitle}</Link>
           </p>
         </div>
       </div>
 
-      {/* Password Reset Modal */}
-      {showReset && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-6 bg-black/20 backdrop-blur-sm">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="bg-white w-full max-w-sm rounded-[44px] p-8 md:p-10 shadow-2xl relative border border-black/5"
-          >
-            <button 
-              onClick={() => {
-                setShowReset(false);
-                setResetSent(false);
-                setError("");
-              }}
-              className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 text-black/40 hover:bg-gray-100 transition-all"
-            >
-              <X size={20} />
-            </button>
+      <div className="fixed top-8 right-8 flex gap-2">
+        <button onClick={() => setLanguage("ko")} className={`w-10 h-10 rounded-full flex items-center justify-center font-black transition-all ${language === "ko" ? "bg-black text-white shadow-xl" : "bg-white text-black/20 hover:text-black"}`}>KO</button>
+        <button onClick={() => setLanguage("en")} className={`w-10 h-10 rounded-full flex items-center justify-center font-black transition-all ${language === "en" ? "bg-black text-white shadow-xl" : "bg-white text-black/20 hover:text-black"}`}>EN</button>
+      </div>
 
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <Lock size={32} />
-              </div>
-              <h2 className="text-2xl font-black text-black mb-2">{t.auth.resetPasswordTitle}</h2>
-              <p className="text-sm font-bold text-black/50 leading-relaxed">
-                {resetSent ? t.auth.resetLinkSent : t.auth.resetPasswordSubtitle}
-              </p>
-            </div>
-
-            {!resetSent ? (
-               <form onSubmit={handleResetPassword} className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-black ml-1 flex items-center gap-2">
-                      <Mail size={14} className="text-primary" /> {t.auth.email}
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="admin@institution.com"
-                      className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-black/20 text-black font-bold"
-                      value={resetEmail}
-                      onChange={(e) => setResetEmail(e.target.value)}
-                    />
-                  </div>
-                  
-                  {error && (
-                    <p className="text-error text-xs font-bold text-center bg-error/5 py-3 rounded-xl">
-                      {error}
-                    </p>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-black text-white py-5 rounded-2xl text-base font-black hover:bg-black/90 transition-all shadow-xl shadow-black/10 flex items-center justify-center gap-2"
-                  >
-                    {loading ? t.auth.creating : t.auth.sendResetLink}
-                  </button>
-               </form>
-            ) : (
-              <div className="space-y-6 text-center">
-                <div className="flex justify-center">
-                   <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center">
-                      <CheckCircle2 size={32} />
-                   </div>
+      <AnimatePresence>
+        {showReset && (
+          <div className="fixed inset-0 z-[250] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-md rounded-[48px] p-10 relative shadow-2xl">
+              <button onClick={() => { setShowReset(false); setResetSent(false); }} className="absolute top-8 right-8 text-black/20 hover:text-black"><X size={24} /></button>
+              {resetSent ? (
+                <div className="text-center space-y-6">
+                  <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-[24px] flex items-center justify-center mx-auto"><CheckCircle2 size={40} /></div>
+                  <h2 className="text-2xl font-black">이메일을 확인하세요</h2>
+                  <p className="text-black/40 font-bold">비밀번호 재설정 링크가 전송되었습니다.</p>
+                  <button onClick={() => setShowReset(false)} className="w-full py-5 bg-black text-white font-black rounded-[24px]">확인</button>
                 </div>
-                <button
-                  onClick={() => setShowReset(false)}
-                  className="w-full bg-black text-white py-5 rounded-2xl text-base font-black hover:bg-black/90 transition-all shadow-xl shadow-black/10"
-                >
-                  {t.auth.backToLogin}
-                </button>
-              </div>
-            )}
-          </motion.div>
-        </div>
-      )}
-
-      {/* Guest Access Modal */}
-      {showGuestForm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-md">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9, y: 50 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="bg-white w-full max-w-md rounded-[44px] p-8 md:p-10 shadow-2xl relative border border-black/5 max-h-[90vh] overflow-y-auto"
-          >
-            <button 
-              onClick={() => setShowGuestForm(false)}
-              className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-full bg-gray-50 text-black/40 hover:bg-gray-100 transition-all"
-            >
-              <X size={20} />
-            </button>
-
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <CheckCircle2 size={32} />
-              </div>
-              <h2 className="text-2xl font-black text-black mb-2">게스트로 계속하기</h2>
-              <p className="text-sm font-bold text-black/50">간단한 정보만 입력하고 바로 시작하세요!</p>
-            </div>
-
-            <form onSubmit={handleGuestSubmit} className="space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-black ml-1">학생 이름</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="홍길동"
-                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-black font-medium"
-                    value={guestData.studentName}
-                    onChange={(e) => setGuestData({ ...guestData, studentName: e.target.value })}
-                  />
+              ) : (
+                <div className="space-y-6">
+                  <h2 className="text-2xl font-black">{t.auth.resetPasswordTitle}</h2>
+                  <p className="text-black/40 font-bold">{t.auth.resetPasswordSubtitle}</p>
+                  <input type="email" placeholder="email@example.com" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} className="w-full px-6 py-5 bg-slate-50 rounded-[24px] outline-none font-bold focus:bg-white border-2 border-transparent focus:border-black/5" />
+                  <button onClick={handleResetPassword} className="w-full py-5 bg-primary text-white font-black rounded-[24px] shadow-xl">{t.auth.sendResetLink}</button>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-black ml-1">학년/반</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="1학년 1반"
-                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-black font-medium"
-                    value={guestData.grade}
-                    onChange={(e) => setGuestData({ ...guestData, grade: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-black ml-1">보호자 성함</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="김철수"
-                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-black font-medium"
-                    value={guestData.parentName}
-                    onChange={(e) => setGuestData({ ...guestData, parentName: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-black ml-1">보호자 휴대폰 번호</label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="010-0000-0000"
-                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-black font-medium"
-                    value={guestData.phoneNumber}
-                    onChange={(e) => setGuestData({ ...guestData, phoneNumber: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              {error && (
-                <p className="text-error text-sm font-bold text-center bg-error/10 py-3 rounded-xl">
-                  {error}
-                </p>
               )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-emerald-600 text-white py-5 rounded-2xl text-lg font-bold hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-900/10 flex items-center justify-center gap-2"
-              >
-                {loading ? "처리 중..." : "등록 및 포털 접속"} <ArrowRight size={20} />
-              </button>
-              
-              <p className="text-[10px] text-black/30 text-center font-bold">
-                입력하신 번호로 접속 링크를 보내드립니다.
-              </p>
-            </form>
-          </motion.div>
-        </div>
-      )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

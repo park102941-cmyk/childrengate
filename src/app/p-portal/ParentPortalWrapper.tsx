@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Suspense } from "react";
+export const runtime = "edge";
 
 const ParentPortalClient = dynamic(() => import("./ParentPortalClient"), {
   ssr: false,

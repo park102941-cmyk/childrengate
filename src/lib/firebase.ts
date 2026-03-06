@@ -1,6 +1,7 @@
 import { FirebaseApp, initializeApp, getApps, getApp } from "firebase/app";
 import { Auth, getAuth } from "firebase/auth";
 import { Firestore, getFirestore } from "firebase/firestore";
+import { FirebaseStorage, getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDJm5vG3oeZUUMlVZXJqxkxo_dWE9SgPCc",
@@ -15,6 +16,7 @@ const firebaseConfig = {
 let cachedApp: FirebaseApp | null = null;
 let cachedAuth: Auth | null = null;
 let cachedDb: Firestore | null = null;
+let cachedStorage: FirebaseStorage | null = null;
 
 function getSafeApp() {
     if (typeof window === "undefined") return null;
@@ -44,4 +46,5 @@ export const getDbInstance = () => {
 // but these will never be used for real calls.
 export const auth = typeof window !== "undefined" ? getAuth(getSafeApp()!) : null;
 export const db = typeof window !== "undefined" ? getFirestore(getSafeApp()!) : null;
+export const storage = typeof window !== "undefined" ? getStorage(getSafeApp()!) : null;
 export const app = typeof window !== "undefined" ? getSafeApp() : null;

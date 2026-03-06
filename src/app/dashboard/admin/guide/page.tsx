@@ -107,8 +107,11 @@ export default function GuidePage() {
             <h2 className="text-3xl font-black mb-4">도움이 더 필요하신가요?</h2>
             <p className="text-white/60 font-bold">Children Gate 고객 지원팀이 24시간 대기하고 있습니다.</p>
           </div>
-          <button className="px-8 py-4 bg-primary text-white rounded-2xl font-black shadow-xl shadow-primary/20 flex items-center gap-2 hover:scale-105 transition-transform">
-             1:1 실시간 문의하기 <ArrowRight size={20} />
+          <button 
+            onClick={() => window.location.href = "mailto:support@kidsgate.io"}
+            className="px-8 py-4 bg-primary text-white rounded-2xl font-black shadow-xl shadow-primary/20 flex items-center gap-2 hover:scale-105 transition-transform"
+          >
+             이메일 문의 하기 <ArrowRight size={20} />
           </button>
         </div>
       </section>

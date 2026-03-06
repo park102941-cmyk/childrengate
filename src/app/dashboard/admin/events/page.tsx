@@ -26,6 +26,10 @@ import {
   AlertCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { db } from "@/lib/firebase";
+import { collection, query, where, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, getDocs, orderBy } from "firebase/firestore";
+import { useAuth } from "@/context/AuthContext";
+import { useEffect } from "react";
 
 interface AttendanceRecord {
   id: string;
@@ -57,28 +61,39 @@ interface SchoolEvent {
   location?: string;
 }
 
-const mockAttendance: AttendanceRecord[] = [
-  { id: "1", name: "김민수", grade: "초1", class: "기쁨반", status: "present", time: "09:00", date: "2026-02-23" },
-  { id: "2", name: "이서연", grade: "초1", class: "기쁨반", status: "late", time: "09:15", date: "2026-02-23" },
-  { id: "3", name: "박지훈", grade: "초2", class: "민들레반", status: "absent", date: "2026-02-23" },
-  { id: "4", name: "최유진", grade: "초2", class: "민들레반", status: "present", time: "08:55", date: "2026-02-23" },
-  { id: "5", name: "정은우", grade: "유치부", class: "햇살반", status: "present", time: "09:05", date: "2026-02-23" },
-  { id: "6", name: "강현우", grade: "유치부", class: "햇살반", status: "late", time: "09:30", date: "2026-02-23" },
-];
+const mockAttendance: AttendanceRecord[] = [];
 
 export default function EventsStatsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [gradeFilter, setGradeFilter] = useState("전체");
   const [classFilter, setClassFilter] = useState("전체");
+  const [statusFilter, setStatusFilter] = useState<"all" | "present" | "late" | "absent">("all");
 
-  const grades = ["전체", "유치부", "초1", "초2", "초3"];
+  const grades = ["전체", "E1", "E2", "E3", "E4", "E5", "M6", "M7", "M8", "H9", "H10", "H11", "H12"];
   const classes = ["전체", "기쁨반", "민들레반", "햇살반"];
 
-  const [events, setEvents] = useState<SchoolEvent[]>([
-    { id: "e1", title: "어린이날 행사", type: "행사", date: "2026-05-05", startTime: "10:00", endTime: "15:00", target: "전체", isRecurring: false, requiresRSVP: true, rsvpCount: 45, color: "bg-blue-500", isUrgent: false },
-    { id: "e2", title: "매주 월요일 큐티", type: "일상", date: "2026-02-23", startTime: "08:30", endTime: "09:00", target: "전체", isRecurring: true, recurringType: "weekly", recurringDays: ["월"], requiresRSVP: false, color: "bg-emerald-500", isUrgent: false },
-    { id: "e3", title: "긴급 안전 교육", type: "교육", date: "2026-02-24", startTime: "13:00", endTime: "14:00", target: "전체", isRecurring: false, requiresRSVP: false, color: "bg-red-500", isUrgent: true },
-  ]);
+  const { institutionId } = useAuth();
+  const [events, setEvents] = useState<SchoolEvent[]>([]);
+
+  useEffect(() => {
+    if (!db || !institutionId) return;
+
+    const q = query(
+      collection(db, "events"),
+      where("institutionId", "==", institutionId),
+      orderBy("date", "asc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as SchoolEvent[];
+      setEvents(data);
+    });
+
+    return () => unsubscribe();
+  }, [institutionId]);
 
   const [showEventModal, setShowEventModal] = useState(false);
   const [newEvent, setNewEvent] = useState<Omit<SchoolEvent, "id">>({
@@ -130,9 +145,10 @@ export default function EventsStatsPage() {
       const matchSearch = record.name.includes(searchTerm) || record.class.includes(searchTerm);
       const matchGrade = gradeFilter === "전체" || record.grade === gradeFilter;
       const matchClass = classFilter === "전체" || record.class === classFilter;
-      return matchSearch && matchGrade && matchClass;
+      const matchStatus = statusFilter === "all" || record.status === statusFilter;
+      return matchSearch && matchGrade && matchClass && matchStatus;
     });
-  }, [searchTerm, gradeFilter, classFilter]);
+  }, [searchTerm, gradeFilter, classFilter, statusFilter]);
 
   const stats = useMemo(() => {
     const present = filteredRecords.filter(r => r.status === "present").length;
@@ -183,6 +199,8 @@ export default function EventsStatsPage() {
           value={stats.total.toString()} 
           icon={Users} 
           color="bg-blue-500" 
+          active={statusFilter === 'all'}
+          onClick={() => setStatusFilter('all')}
         />
         <StatSummaryCard 
           label="출석" 
@@ -191,6 +209,8 @@ export default function EventsStatsPage() {
           color="bg-emerald-500" 
           trend="+2"
           trendUp={true}
+          active={statusFilter === 'present'}
+          onClick={() => setStatusFilter('present')}
         />
         <StatSummaryCard 
           label="지각" 
@@ -199,6 +219,8 @@ export default function EventsStatsPage() {
           color="bg-amber-500" 
           trend="+1"
           trendUp={false}
+          active={statusFilter === 'late'}
+          onClick={() => setStatusFilter('late')}
         />
         <StatSummaryCard 
           label="결석" 
@@ -207,6 +229,8 @@ export default function EventsStatsPage() {
           color="bg-red-500" 
           trend="-1"
           trendUp={true}
+          active={statusFilter === 'absent'}
+          onClick={() => setStatusFilter('absent')}
         />
       </section>
 
@@ -367,6 +391,13 @@ export default function EventsStatsPage() {
                     <span className="text-sm font-black text-blue-700">{event.rsvpCount || 0}명 신청</span>
                   </div>
                 )}
+                
+                <button 
+                  onClick={() => alert(`${event.title} 일정을 학부모님들께 공유했습니다.`)}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 text-black/40 hover:text-primary hover:bg-primary/5 rounded-2xl border border-black/5 font-black text-xs transition-all"
+                >
+                  <ArrowUpRight size={14} /> 학부모 공지 및 공유하기
+                </button>
               </div>
             </motion.div>
           ))}
@@ -566,11 +597,12 @@ function Toggle({ active, onClick }: { active: boolean; onClick: () => void }) {
   );
 }
 
-function StatSummaryCard({ label, value, icon: Icon, color, trend, trendUp }: any) {
+function StatSummaryCard({ label, value, icon: Icon, color, trend, trendUp, active, onClick }: any) {
   return (
     <motion.div 
       whileHover={{ y: -5 }}
-      className="bg-white rounded-[32px] p-8 border border-black/5 shadow-sm relative overflow-hidden group"
+      onClick={onClick}
+      className={`bg-white rounded-[32px] p-8 border-2 transition-all relative overflow-hidden group cursor-pointer ${active ? 'border-primary ring-4 ring-primary/10' : 'border-black/5 shadow-sm'}`}
     >
       <div className={`absolute top-0 left-0 w-2 h-full ${color}`}></div>
       <div className="flex items-start justify-between">
@@ -585,7 +617,7 @@ function StatSummaryCard({ label, value, icon: Icon, color, trend, trendUp }: an
             </div>
           )}
         </div>
-        <div className={`p-4 rounded-2xl ${color} bg-opacity-10 text-white shadow-inner`}>
+        <div className={`p-4 rounded-2xl ${color} bg-opacity-10 shadow-inner`}>
           <Icon size={24} className={`${color.replace('bg-', 'text-')}`} />
         </div>
       </div>

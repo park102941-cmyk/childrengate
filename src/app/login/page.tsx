@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { Suspense } from "react";
 
-// export const runtime = 'edge';
+export const runtime = 'edge';
 
 const LoginClient = dynamic(() => import("./LoginClient"), {
   ssr: false,

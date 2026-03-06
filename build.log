@@ -1,0 +1,50 @@
+   ▲ Next.js 15.1.7
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Skipping validation of types
+   Skipping linting
+   Collecting page data ...
+ ⚠ Using edge runtime on a page currently disables static generation for that page
+   Generating static pages (0/20) ...
+   Generating static pages (5/20) 
+   Generating static pages (10/20) 
+   Generating static pages (15/20) 
+ ✓ Generating static pages (20/20)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ○ /                                    11.2 kB         168 kB
+├ ○ /_not-found                          990 B           107 kB
+├ ○ /admin                               614 B           107 kB
+├ ○ /admin/dashboard                     103 kB          216 kB
+├ ƒ /dashboard/admin                     1.56 kB         108 kB
+├ ○ /dashboard/admin/dispatch            6.16 kB         298 kB
+├ ○ /dashboard/admin/events              9.26 kB         301 kB
+├ ○ /dashboard/admin/guide               2.67 kB         148 kB
+├ ○ /dashboard/admin/messages            7.76 kB         300 kB
+├ ○ /dashboard/admin/qr                  11.3 kB         311 kB
+├ ○ /dashboard/admin/settings            7.21 kB         268 kB
+├ ○ /dashboard/admin/sheets              4.53 kB         119 kB
+├ ○ /dashboard/admin/students            1.55 kB         108 kB
+├ ƒ /dashboard/admin/students/[id]       1.55 kB         108 kB
+├ ○ /dashboard/parent                    2.59 kB         303 kB
+├ ○ /dashboard/teacher                   5.45 kB         306 kB
+├ ƒ /gate/[id]                           2.65 kB         295 kB
+├ ○ /icon.png                            0 B                0 B
+├ ƒ /login                               1.6 kB          108 kB
+├ ○ /p-portal                            1.73 kB         108 kB
+├ ○ /privacy                             1.03 kB         158 kB
+├ ƒ /signup                              1.58 kB         108 kB
+└ ○ /terms                               1.04 kB         158 kB
++ First Load JS shared by all            106 kB
+  ├ chunks/1517-5abce4007684cb3a.js      50.7 kB
+  ├ chunks/4bd1b696-7264ebe7a24018c9.js  53 kB
+  └ other shared chunks (total)          2.31 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

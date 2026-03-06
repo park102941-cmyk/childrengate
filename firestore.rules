@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Users collection: Only the owner can read/write their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // 2. Institutions: Publicly readable for validation, only admin can write
+    match /institutions/{instId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // 3. Guests: Anyone can register (create) themselves, and read their own entry
+    match /guests/{guestId} {
+      allow create: if true;
+      allow read: if true;
+      allow update, delete: if false;
+    }
+    
+    // 4. Students management (Admins only)
+    match /students/{studentId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // 5. Events & Messages: Publicly readable, only admins write
+    match /events/{eventId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    match /messages/{msgId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // 6. Logs & Requests: Broad access for testing QR/Portal entry
+    match /checkin_logs/{logId} {
+      allow read, write: if true;
+    }
+    match /pickup_requests/{reqId} {
+      allow read, write: if true;
+    }
+  }
+}

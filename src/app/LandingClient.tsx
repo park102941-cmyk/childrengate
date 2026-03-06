@@ -14,7 +14,18 @@ import {
   RefreshCw,
   ShieldCheck,
   Smartphone,
-  Users
+  Users,
+  Search,
+  LayoutDashboard,
+  UserPlus,
+  Monitor,
+  MessageSquare,
+  Cake,
+  Download,
+  Globe,
+  Lock,
+  SmartphoneNfc,
+  Settings
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useLanguage } from "@/context/LanguageContext";
@@ -160,7 +171,18 @@ export default function LandingPage() {
             { icon: ShieldCheck, title: t.features.item6.title, desc: t.features.item6.desc },
             { icon: Smartphone, title: t.features.item7.title, desc: t.features.item7.desc },
             { icon: Users, title: t.features.item8.title, desc: t.features.item8.desc },
-            { icon: CheckCircle2, title: t.features.item9.title, desc: t.features.item9.desc }
+            { icon: CheckCircle2, title: t.features.item9.title, desc: t.features.item9.desc },
+            { icon: Search, title: t.features.item10.title, desc: t.features.item10.desc },
+            { icon: LayoutDashboard, title: t.features.item11.title, desc: t.features.item11.desc },
+            { icon: UserPlus, title: t.features.item12.title, desc: t.features.item12.desc },
+            { icon: Monitor, title: t.features.item13.title, desc: t.features.item13.desc },
+            { icon: MessageSquare, title: t.features.item14.title, desc: t.features.item14.desc },
+            { icon: Cake, title: t.features.item15.title, desc: t.features.item15.desc },
+            { icon: Download, title: t.features.item16.title, desc: t.features.item16.desc },
+            { icon: Globe, title: t.features.item17.title, desc: t.features.item17.desc },
+            { icon: Lock, title: t.features.item18.title, desc: t.features.item18.desc },
+            { icon: SmartphoneNfc, title: t.features.item19.title, desc: t.features.item19.desc },
+            { icon: Settings, title: t.features.item20.title, desc: t.features.item20.desc }
           ].map((feature, index) => (
             <motion.div 
               key={index}
@@ -314,11 +336,11 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
             <div className="space-y-6 col-span-1 md:col-span-2">
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-black/5 shadow-sm">
-                  <img src="/children_gate_logo.png" alt="Children Gate Logo" className="w-full h-full object-contain p-1.5" />
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-black/5 shadow-sm">
+                  <img src="/children_gate_logo.png" alt="Children Gate Logo" className="w-full h-full object-contain p-0.5" />
                 </div>
-                <span className="font-bold text-xl tracking-tight">Children Gate</span>
+                <span className="font-black text-2xl tracking-tight">Children Gate</span>
               </div>
               <p className="text-black/50 font-medium max-w-sm">
                 Smart and Safe Attendance System. Providing the most reliable bridge between institutions and parents.
@@ -350,8 +372,11 @@ export default function LandingPage() {
             <p className="text-sm text-black/30 font-medium">
               {t.common.copyright}
             </p>
-            <div className="flex gap-6 text-black/30">
-              {/* Optional: Social Icons */}
+            <div className="flex flex-col items-center md:items-end gap-1.5 text-black/30 font-bold text-xs">
+              <p>Designed & Developed by <span className="text-primary/70">John Park</span></p>
+              <div className="flex gap-4">
+                {/* Optional: Social Icons */}
+              </div>
             </div>
           </div>
         </div>

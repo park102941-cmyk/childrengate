@@ -11,8 +11,8 @@ const nextConfig: NextConfig = {
         destination: '/p-portal?id=:id',
       },
       {
-        source: '/dashboard/admin/student/:id',
-        destination: '/dashboard/admin/student-detail?id=:id',
+        source: '/scan/:instId/:studentId',
+        destination: '/gate/:instId?studentId=:studentId',
       }
     ];
   },

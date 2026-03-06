@@ -65,9 +65,20 @@ export const translations = {
       item4: { title: "차량 픽업 모드", desc: "차 안에서 스캔하면 모니터에 아이 이름이 자동 나열됩니다." },
       item5: { title: "스티커 자동 출력", desc: "스캔과 동시에 아이의 정보가 담긴 라벨이 출력됩니다." },
       item6: { title: "2단계 보안 승인", desc: "선생님의 최종 승인이 있어야 하교 처리가 완료됩니다." },
-      item7: { title: "PWA 웹앱", desc: "설치 없이 앱처럼 편리하게 사용하는 웹앱을 제공합니다." },
-      item8: { title: "다중 역할 관리", desc: "관리자, 선생님, 학부모별 맞춤형 화면을 제공합니다." },
-      item9: { title: "방문자 로그 관리", desc: "외부 방문객의 출입 기록까지 완벽하게 관리하세요." }
+      item7: { title: "PWA 웹앱 지원", desc: "설치가 필요 없는 앱 환경으로 모든 기기에서 사용 가능합니다." },
+      item8: { title: "다중 역할 관리", desc: "관리자, 선생님, 학부모별 최적화된 화면을 제공합니다." },
+      item9: { title: "방문자 로그 관리", desc: "외부 방문객과 게스트의 출입 기록까지 완벽 관리합니다." },
+      item10: { title: "학생 상세 프로필", desc: "아이의 출결 히스토리와 건강 정보를 한눈에 확인하세요." },
+      item11: { title: "통합 관리 대시보드", desc: "기관의 모든 현황을 실시간 그래프로 파악할 수 있습니다." },
+      item12: { title: "다자녀 일괄 픽업", desc: "여러 명의 자녀도 터치 한 번으로 동시에 요청 가능합니다." },
+      item13: { title: "선생님 전용 뷰", desc: "수업 중에도 방해받지 않는 직관적인 인계 화면을 제공합니다." },
+      item14: { title: "실시간 알림장", desc: "중요 공지와 긴급 메시지를 실시간으로 주고받습니다." },
+      item15: { title: "생일 자동 관리", desc: "다가오는 아이들의 생일을 놓치지 않게 미리 알려드립니다." },
+      item16: { title: "엑셀 데이터 추출", desc: "모든 기록을 클릭 한 번으로 엑셀로 내려받을 수 있습니다." },
+      item17: { title: "다국어 완벽 지원", desc: "글로벌 환경을 위한 한국어와 영어 모드를 지원합니다." },
+      item18: { title: "보안 인증 시스템", desc: "Firebase 기반의 강력한 보안으로 데이터를 보호합니다." },
+      item19: { title: "반응형 인터페이스", desc: "스마트폰, 태블릿, PC 어디서나 최적의 화면을 보여줍니다." },
+      item20: { title: "커스텀 기관 설정", desc: "우리 기관에 딱 맞는 운영 환경을 직접 설정하세요." }
     },
     howItWorks: {
       title: "스마트한 작동 원리",
@@ -154,6 +165,7 @@ export const translations = {
           action: "작업"
         },
         sidebar: {
+          dashboard: "대시보드",
           students: "학생 관리",
           dispatch: "등하교 관리",
           events: "이벤트 및 통계",
@@ -318,7 +330,18 @@ export const translations = {
       item6: { title: "Two-Step Security", desc: "Pickup is only completed after final approval from the teacher." },
       item7: { title: "PWA Web App", desc: "Provides a convenient mobile experience like an app without installation." },
       item8: { title: "Multi-Role Management", desc: "Tailored screens for admins, teachers, and parents." },
-      item9: { title: "Visitor Log Management", desc: "Complete management of visitor entry and exit records." }
+      item9: { title: "Visitor Log Management", desc: "Complete management of visitor entry and exit records." },
+      item10: { title: "Student Detail Profile", desc: "Check child's attendance history and health info at a glance." },
+      item11: { title: "Integrated Dashboard", desc: "Track all institution status with real-time graphs." },
+      item12: { title: "Multi-child Pickup", desc: "Request multiple children at once with a single touch." },
+      item13: { title: "Teacher Exclusive View", desc: "Intuitive handover screen that doesn't disturb class." },
+      item14: { title: "Real-time Messaging", desc: "Exchange important notices and urgent messages instantly." },
+      item15: { title: "Birthday Auto-Mgmt", desc: "Never miss upcoming student birthdays with auto-alerts." },
+      item16: { title: "Excel Data Export", desc: "Download all records to Excel with a single click." },
+      item17: { title: "Full Multilingual", desc: "Supports Korean and English modes for global environments." },
+      item18: { title: "Secure Auth System", desc: "Highly secure data protection based on Firebase." },
+      item19: { title: "Responsive Interface", desc: "Optimized for smartphones, tablets, and PCs." },
+      item20: { title: "Custom Institution Settings", desc: "Configure the operating environment fits your needs." }
     },
     howItWorks: {
       title: "How It Works",
@@ -405,7 +428,8 @@ export const translations = {
           action: "Action"
         },
         sidebar: {
-          students: "Students",
+          dashboard: "Dashboard",
+          students: "Student Management",
           dispatch: "Dispatch",
           events: "Events & Stats",
           qr: "QR Management",

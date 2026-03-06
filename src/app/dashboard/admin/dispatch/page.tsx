@@ -10,6 +10,7 @@ import { Search, Car, UserCheck, Clock, CheckCircle2, ChevronRight, X, AlertCirc
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, updateDoc, doc, Timestamp, orderBy } from "firebase/firestore";
+import { useAuth } from "@/context/AuthContext";
 
 interface DispatchStudent {
   id: string;
@@ -24,25 +25,27 @@ interface DispatchStudent {
 
 // Mock Data
 const initialStudents: DispatchStudent[] = [
-  { id: "1", name: "김민수", grade: "초1", class: "기쁨반", parentName: "김철수", status: "pickup_requested", requestTime: "14:30" },
-  { id: "2", name: "이서연", grade: "초1", class: "기쁨반", parentName: "이영희", status: "present" },
-  { id: "3", name: "박지훈", grade: "초2", class: "민들레반", parentName: "박동건", status: "pickup_requested", requestTime: "14:32" },
-  { id: "4", name: "최유진", grade: "초2", class: "민들레반", parentName: "최수영", status: "released", requestTime: "14:15" },
-  { id: "5", name: "정은우", grade: "유치부", class: "햇살반", parentName: "정지훈", status: "pickup_requested", requestTime: "14:35" },
-  { id: "6", name: "강현우", grade: "유치부", class: "햇살반", parentName: "강민수", status: "present" },
+  { id: "1", name: "김민수", grade: "E1", class: "기쁨반", parentName: "김철수", status: "pickup_requested", requestTime: "14:30" },
+  { id: "2", name: "이서연", grade: "E1", class: "기쁨반", parentName: "이영희", status: "present" },
+  { id: "3", name: "박지훈", grade: "E2", class: "민들레반", parentName: "박동건", status: "pickup_requested", requestTime: "14:32" },
+  { id: "4", name: "최유진", grade: "E2", class: "민들레반", parentName: "최수영", status: "released", requestTime: "14:15" },
+  { id: "5", name: "정은우", grade: "E3", class: "햇살반", parentName: "정지훈", status: "pickup_requested", requestTime: "14:35" },
+  { id: "6", name: "강현우", grade: "E3", class: "햇살반", parentName: "강민수", status: "present" },
 ];
 
 export default function DispatchDashboard() {
   const [students, setStudents] = useState<DispatchStudent[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState<"all" | "pickup_requested" | "released">("all");
+  const { institutionId } = useAuth();
 
   useEffect(() => {
-    if (!db) return;
+    if (!db || !institutionId) return;
 
-    // Listen to real-time pickup requests
+    // Listen to real-time pickup requests for this institution
     const q = query(
       collection(db, "pickup_requests"),
+      where("institutionId", "==", institutionId),
       where("status", "in", ["pending", "approved", "completed"]),
       orderBy("requestTime", "desc")
     );

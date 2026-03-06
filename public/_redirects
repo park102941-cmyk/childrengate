@@ -1,2 +1,3 @@
 /p/:id /p-portal?id=:id 200
+/scan/:instId/:studentId /gate/:instId?studentId=:studentId 200
 /dashboard/admin/student/:id /dashboard/admin/student-detail?id=:id 200

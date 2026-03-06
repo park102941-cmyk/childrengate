@@ -35,6 +35,7 @@ function SignupContent() {
     studentCount: "1-50명",
     address: "",
     childClass: "",
+    childGrade: "E1",
     relationship: "부 (아버지)",
   });
 
@@ -78,10 +79,10 @@ function SignupContent() {
 
       if (userDocSnap.exists()) {
          const userData = userDocSnap.data();
-         if (userData.role === "admin") {
+         if (userData.role === "admin" || userData.role === "staff") {
            router.push("/dashboard/admin");
          } else {
-           router.push(`/p/${userData.institutionId}`);
+           router.push(`/p-portal?id=${userData.institutionId}`);
          }
          return;
       }
@@ -116,7 +117,7 @@ function SignupContent() {
           relationship: formData.relationship,
           createdAt: new Date(),
         });
-        router.push(`/p/${formData.instCode}`);
+        router.push(`/p-portal?id=${formData.instCode}`);
       }
     } catch (err: any) {
       setError(err.message);
@@ -205,6 +206,7 @@ function SignupContent() {
           role: "parent",
           institutionId: formData.instCode.trim(),
           phone: formData.contact,
+          childGrade: formData.childGrade,
           childClass: formData.childClass,
           relationship: formData.relationship,
           createdAt: new Date(),
@@ -252,7 +254,7 @@ function SignupContent() {
       <div className="absolute top-6 right-6 z-10">
         <button 
           onClick={() => setLanguage(language === "ko" ? "en" : "ko")}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-white border-black/10 text-xs font-bold hover:bg-black/5 transition-all text-black shadow-sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-white border-black/10 text-xs font-black hover:bg-black/5 transition-all text-black shadow-sm"
         >
           <Globe size={14} className="text-primary" />
           {language === "ko" ? "EN" : "KO"}
@@ -265,8 +267,8 @@ function SignupContent() {
           className="bg-white rounded-[40px] p-8 md:p-12 shadow-2xl shadow-black/5 border border-black/5"
         >
           <div className="text-center mb-10">
-            <div className="w-16 h-16 bg-white overflow-hidden rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-black/5 border border-black/5">
-              <img src="/children_gate_logo.png" alt="Children Gate Logo" className="w-full h-full object-contain p-2" />
+            <div className="w-24 h-24 bg-white overflow-hidden rounded-[28px] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-black/10 border border-black/5">
+              <img src="/children_gate_logo.png" alt="Children Gate Logo" className="w-full h-full object-contain p-0.5" />
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight text-black mb-3">{t.auth.signupTitle}</h1>
             <p className="text-black/60 font-medium">{t.auth.signupSubtitle}</p>
@@ -393,6 +395,7 @@ function SignupContent() {
               {userType === "parent" && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Column 1: Institution Code */}
                     <div className="space-y-2">
                       <label className="text-sm font-bold text-black ml-1 flex items-center gap-2">
                         <Building2 size={14} className="text-primary" /> {t.auth.instCode}
@@ -406,34 +409,77 @@ function SignupContent() {
                         onChange={(e) => setFormData({ ...formData, instCode: e.target.value })}
                       />
                     </div>
+
+                    {/* Column 2: Grade Selection */}
                     <div className="space-y-2">
                       <label className="text-sm font-bold text-black ml-1 flex items-center gap-2">
-                        <Baby size={14} className="text-primary" /> {(t.auth as any).childClass}
+                        <ArrowRight size={14} className="text-primary" /> 학년 선택
+                      </label>
+                      <select 
+                        className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-primary outline-none transition-all text-black font-medium appearance-none"
+                        value={formData.childGrade}
+                        onChange={(e) => setFormData({...formData, childGrade: e.target.value})}
+                      >
+                          <optgroup label="미취학/유치원 (Preschool/K)">
+                             <option value="PK">미취학 (PK)</option>
+                             <option value="K">유치원 (Kindergarten)</option>
+                          </optgroup>
+                          <optgroup label="초등학생 (Elementary)">
+                             <option value="E1">초등 1학년 (E1)</option>
+                             <option value="E2">초등 2학년 (E2)</option>
+                             <option value="E3">초등 3학년 (E3)</option>
+                             <option value="E4">초등 4학년 (E4)</option>
+                             <option value="E5">초등 5학년 (E5)</option>
+                          </optgroup>
+                          <optgroup label="중학생 (Middle)">
+                             <option value="M6">중등 1학년 (M6)</option>
+                             <option value="M7">중등 2학년 (M7)</option>
+                             <option value="M8">중등 3학년 (M8)</option>
+                          </optgroup>
+                          <optgroup label="고등학생 (High)">
+                             <option value="H9">고등 1학년 (H9)</option>
+                             <option value="H10">고등 2학년 (H10)</option>
+                             <option value="H11">고등 3학년 (H11)</option>
+                          </optgroup>
+                          <optgroup label="기타">
+                             <option value="ETC">기타</option>
+                          </optgroup>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Row 2 Col 1: Class Name */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-black ml-1 flex items-center gap-2">
+                        <Baby size={14} className="text-primary" /> 반 이름 (선택)
                       </label>
                       <input
                         type="text"
-                        placeholder="예: 햇살반, 1학년 2반"
+                        placeholder="예: 햇살반, 1반"
                         className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-black/20 text-black font-medium"
                         value={formData.childClass}
                         onChange={(e) => setFormData({ ...formData, childClass: e.target.value })}
                       />
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-black ml-1 flex items-center gap-2">
-                      <User size={14} className="text-primary" /> {(t.auth as any).relationship}
-                    </label>
-                    <select 
-                      className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-primary outline-none transition-all text-black font-medium appearance-none"
-                      value={formData.relationship}
-                      onChange={(e) => setFormData({...formData, relationship: e.target.value})}
-                    >
-                       <option>부 (아버지)</option>
-                       <option>모 (어머니)</option>
-                       <option>조부모</option>
-                       <option>고모/이모/삼촌</option>
-                       <option>기타 보호자</option>
-                    </select>
+
+                    {/* Row 2 Col 2: Relationship */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-black ml-1 flex items-center gap-2">
+                        <User size={14} className="text-primary" /> {t.auth.relationship}
+                      </label>
+                      <select 
+                        className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none ring-2 ring-black/5 focus:ring-2 focus:ring-primary outline-none transition-all text-black font-medium appearance-none"
+                        value={formData.relationship}
+                        onChange={(e) => setFormData({...formData, relationship: e.target.value})}
+                      >
+                         <option>부 (아버지)</option>
+                         <option>모 (어머니)</option>
+                         <option>조부모</option>
+                         <option>고모/이모/삼촌</option>
+                         <option>기타 보호자</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               )}
