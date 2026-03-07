@@ -38,52 +38,49 @@ export default function DispatchDashboard() {
   const [pickupRequests, setPickupRequests] = useState<any[]>([]);
   const [allStudentsData, setAllStudentsData] = useState<any[]>([]);
 
+  // Real-time Data Listeners
   useEffect(() => {
     if (!db || !institutionId) return;
 
-    const fetchData = async () => {
-      if (!db || !institutionId) return;
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
 
-      try {
-        // 1. Fetch real-time pickup requests (TODAY ONLY)
-        const qRequests = query(
-          collection(db, "pickup_requests"),
-          where("institutionId", "==", institutionId),
-          where("requestTime", ">=", Timestamp.fromDate(startOfToday)),
-          orderBy("requestTime", "desc")
-        );
-        
-        const snapshotRequests = await getDocs(qRequests);
-        const reqData = snapshotRequests.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setPickupRequests(reqData);
+    // 1. Listen to real-time pickup requests (TODAY ONLY) - No orderBy to avoid index requirement
+    const qRequests = query(
+      collection(db, "pickup_requests"),
+      where("institutionId", "==", institutionId),
+      where("requestTime", ">=", Timestamp.fromDate(startOfToday))
+    );
 
-        // 2. Fetch ALL students
-        const qStudents = query(
-          collection(db, "students"),
-          where("institutionId", "==", institutionId)
-        );
-        
-        const snapshotStudents = await getDocs(qStudents);
-        const stuData = snapshotStudents.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setAllStudentsData(stuData);
+    const unsubscribeRequests = onSnapshot(qRequests, (snapshot) => {
+      const data = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .sort((a: any, b: any) => (b.requestTime?.seconds || 0) - (a.requestTime?.seconds || 0));
+      setPickupRequests(data);
+    }, (err) => {
+      console.error("Pickup sync error:", err);
+    });
 
-      } catch (err) {
-        console.error("Data sync error:", err);
-      }
+    // 2. Listen to ALL students
+    const qStudents = query(
+      collection(db, "students"),
+      where("institutionId", "==", institutionId)
+    );
+
+    const unsubscribeStudents = onSnapshot(qStudents, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setAllStudentsData(data);
+    }, (err) => {
+      console.error("Students sync error:", err);
+    });
+
+    return () => {
+      unsubscribeRequests();
+      unsubscribeStudents();
     };
-
-    fetchData(); // Initial load
-    const interval = setInterval(fetchData, 3000); // Poll every 3 seconds
-
-    return () => clearInterval(interval);
   }, [institutionId]);
 
   // Combine both sources and unify state
@@ -362,7 +359,9 @@ export default function DispatchDashboard() {
   const groupedStudents = useMemo(() => {
     const groups: Record<string, DispatchStudent[]> = {};
     filteredStudents.forEach(student => {
-      const key = `${student.grade} - ${student.class}`;
+      const g = student.grade || "미지정";
+      const c = student.class || "기본반";
+      const key = `${g} - ${c}`;
       if (!groups[key]) groups[key] = [];
       groups[key].push(student);
     });
@@ -381,6 +380,15 @@ export default function DispatchDashboard() {
              </span>
           </h1>
           <p className="text-black/50 font-semibold mt-2">학부모의 하교 요청을 실시간으로 확인하고 학생을 인계합니다.</p>
+        </div>
+        <div className="flex items-center gap-3">
+            <button 
+              onClick={() => window.location.reload()}
+              className="p-3 bg-white border border-black/5 rounded-2xl text-black/40 hover:text-black hover:shadow-lg transition-all"
+              title="Refresh Page"
+            >
+                <RefreshCcw size={18} />
+            </button>
         </div>
       </header>
 
