@@ -340,6 +340,7 @@ export default function AdminDashboard() {
                 icon={Users}
                 color="primary"
                 delay={0.05}
+                onClick={() => router.push('/dashboard/admin/dispatch')}
               />
                <SummaryCard 
                 label="오늘 등교 확인" 
@@ -348,6 +349,7 @@ export default function AdminDashboard() {
                 icon={CheckCircle2}
                 color="emerald"
                 delay={0.10}
+                onClick={() => router.push('/dashboard/admin/dispatch')}
               />
               <SummaryCard 
                 label="하교 대기 요청" 
@@ -357,6 +359,7 @@ export default function AdminDashboard() {
                 color="amber"
                 alert={parseInt(pendingPickups) > 0}
                 delay={0.15}
+                onClick={() => router.push('/dashboard/admin/dispatch')}
               />
            </section>
 
@@ -518,7 +521,7 @@ export default function AdminDashboard() {
 
 // --- Dashboard Primitives ---
 
-function SummaryCard({ label, value, subtext, icon: Icon, color, alert, delay = 0 }: any) {
+function SummaryCard({ label, value, subtext, icon: Icon, color, alert, onClick, delay = 0 }: any) {
    const colorMap: any = {
       primary: 'bg-primary/10 text-primary border-primary/20',
       emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
@@ -530,7 +533,8 @@ function SummaryCard({ label, value, subtext, icon: Icon, color, alert, delay = 
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay }}
-        className={`p-5 bg-white rounded-[32px] border ${alert ? 'border-amber-400 ring-4 ring-amber-400/5' : 'border-black/5'} shadow-sm relative overflow-hidden group hover:shadow-xl hover:shadow-black/5 transition-all duration-300`}
+        onClick={onClick}
+        className={`p-5 bg-white rounded-[32px] border ${alert ? 'border-amber-400 ring-4 ring-amber-400/5' : 'border-black/5'} shadow-sm relative overflow-hidden group hover:shadow-xl hover:shadow-black/5 transition-all duration-300 cursor-pointer`}
       >
          <div className="flex items-center justify-between mb-5">
             <div className={`w-10 h-10 rounded-xl ${colorMap[color] || colorMap.primary} flex items-center justify-center border transition-transform group-hover:-rotate-12 duration-500`}>
