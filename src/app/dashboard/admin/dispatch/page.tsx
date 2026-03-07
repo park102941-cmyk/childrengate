@@ -6,7 +6,7 @@
 
 
 import { useState, useMemo, useEffect } from "react";
-import { Search, Car, UserCheck, Clock, CheckCircle2, ChevronRight, X, AlertCircle, Phone, MessageSquare, MoreVertical, LogIn, LogOut, RefreshCcw } from "lucide-react";
+import { Search, Car, UserCheck, Clock, CheckCircle2, ChevronRight, X, AlertCircle, Phone, MessageSquare, MoreVertical, LogIn, LogOut, RefreshCcw, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, updateDoc, doc, Timestamp, orderBy, getDocs, limit, addDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
@@ -142,7 +142,6 @@ export default function DispatchDashboard() {
 
   // Actions
   const handleApprove = async (student: DispatchStudent) => {
-    setLoadingId(student.id);
     // Optimistic Update
     setStudents(prev => prev.map(s => s.id === student.id ? { ...s, status: 'pickup_requested', isApproved: true, hasPendingRequest: false } : s));
 
@@ -260,8 +259,7 @@ export default function DispatchDashboard() {
   };
 
   const handleRelease = async (student: DispatchStudent) => {
-    setLoadingId(student.id);
-    // Optimistic Update
+    // Optimistic Update - Transition to released status instantly
     setStudents(prev => prev.map(s => s.id === student.id ? { ...s, status: 'released' } : s));
 
     try {
@@ -504,7 +502,7 @@ export default function DispatchDashboard() {
                                 <MessageSquare size={18} />
                               </button>
                               <button onClick={() => handleAppMessage(student)} className="p-2.5 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 transition-all active:scale-95" title="앱 알림">
-                                <RefreshCcw size={18} />
+                                <Send size={18} />
                               </button>
                            </div>
 
