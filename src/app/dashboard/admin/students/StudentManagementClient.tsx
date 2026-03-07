@@ -15,7 +15,7 @@ import {
   Camera
 } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, deleteDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useRouter } from "next/navigation";
@@ -63,19 +63,16 @@ export default function StudentManagementClient() {
 
     const q = query(collection(db, "students"), where("institutionId", "==", institutionId));
     
-    // Using simple getDocs for now to fix errors, can be onSnapshot later
-    const fetchStudents = async () => {
-        try {
-            const snap = await getDocs(q);
-            const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Student[];
-            setStudents(list);
-        } catch (err) {
-            console.error("Firestore fetch error:", err);
-        } finally {
-            setLoading(false);
-        }
-    };
-    fetchStudents();
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Student[];
+      setStudents(list);
+      setLoading(false);
+    }, (error) => {
+      console.error("Firestore listen error:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [institutionId]);
 
   const handleAddStudent = async (e: React.FormEvent) => {
@@ -114,11 +111,13 @@ export default function StudentManagementClient() {
   };
 
   const filteredStudents = students.filter(s => 
-    s.name.includes(searchTerm) || (s.class && s.class.includes(searchTerm)) || (s.grade && s.grade.includes(searchTerm))
+    (s.name && s.name.includes(searchTerm)) || 
+    (s.class && s.class.includes(searchTerm)) || 
+    (s.grade && s.grade.includes(searchTerm))
   );
 
   return (
-    <main className="flex-1 lg:ml-64 p-6 md:p-10 lg:p-14 bg-gray-50 min-h-screen">
+    <main className="p-6 md:p-10 lg:p-14 bg-gray-50 min-h-screen">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-4 bg-white px-6 py-3 rounded-3xl border border-black/5 shadow-sm w-fit">

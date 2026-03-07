@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   Users, 
   Plus, 
@@ -18,6 +18,8 @@ import {
   LayoutDashboard,
   CheckCircle2,
   LogOut,
+  Edit2,
+  Share2,
   type LucideIcon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -31,28 +33,33 @@ export default function AdminDashboard() {
   const { t } = useLanguage();
   const { institutionId, user, loading: authLoading, role } = useAuth();
   const router = useRouter();
+  const redirectRef = useRef(false);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || redirectRef.current) return;
     
+    let timer: NodeJS.Timeout;
+
     if (!user) {
-      // Small delay to ensure Firebase isn't just slow to restore session
-      // This is critical for preventing "bounce" back to login
-      const timer = setTimeout(() => {
-         if (!user && !authLoading) {
-           console.log("Admin Guard: No user found after 4s, redirecting to login");
-           window.location.href = "/login?type=institution";
+      timer = setTimeout(() => {
+         if (!user && !authLoading && !redirectRef.current) {
+            console.log("Admin Guard: No user found after 10s delay. Redirecting.");
+            redirectRef.current = true;
+            router.push("/login?type=institution");
          }
-      }, 4000);
-      return () => clearTimeout(timer);
+      }, 10000); // 10s safety delay for stability
+    } else if (role && role !== 'admin' && role !== 'staff' && role !== 'teacher') {
+       // Role exists but is wrong
+       console.log("Admin Guard: Account is not an admin. Role:", role);
+       redirectRef.current = true;
+       router.push("/login?type=parent");
     }
 
-    // Only allow admin/staff/teacher
-    if (user && role && role !== 'admin' && role !== 'staff' && role !== 'teacher') {
-       console.log("Admin Guard: Invalid role", role);
-       window.location.href = "/login?type=parent";
-    }
-  }, [user, authLoading, role]);
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [user, authLoading, role, router]);
+
   const [instName, setInstName] = useState("");
   const [instPhoto, setInstPhoto] = useState("/children_gate_logo.png");
   const [activities, setActivities] = useState<any[]>([]);
@@ -60,6 +67,11 @@ export default function AdminDashboard() {
   const [pendingPickups, setPendingPickups] = useState("0");
   const [todayEvents, setTodayEvents] = useState<any[]>([]);
   const [todayCheckins, setTodayCheckins] = useState("0");
+  const [todayLateCount, setTodayLateCount] = useState(0);
+  const [todayPresentCount, setTodayPresentCount] = useState(0);
+  const [currentlyPresentCount, setCurrentlyPresentCount] = useState(0);
+  const [arrivalTime, setArrivalTime] = useState("09:00");
+  const [departureTime, setDepartureTime] = useState("18:00");
   const [plan, setPlan] = useState<"basic" | "premium" | "enterprise">("basic");
 
   useEffect(() => {
@@ -72,51 +84,88 @@ export default function AdminDashboard() {
           setInstName(data.name);
           if (data.photo) setInstPhoto(data.photo);
           if (data.plan) setPlan(data.plan);
+          if (data.arrivalTime) setArrivalTime(data.arrivalTime);
+          if (data.departureTime) setDepartureTime(data.departureTime);
         }
       };
       fetchInst();
 
-      // Fetch student count
-      const fetchCount = async () => {
-        const q = query(collection(db!, "students"), where("institutionId", "==", institutionId));
-        const snap = await getDocs(q);
-        setTotalStudents(snap.size.toString());
-      };
-      fetchCount();
+      const unsubscribeStudents = onSnapshot(
+        query(collection(db!, "students"), where("institutionId", "==", institutionId)),
+        (snap) => {
+          setTotalStudents(snap.size.toString());
+          const present = snap.docs.filter(d => d.data().status === 'present').length;
+          setCurrentlyPresentCount(present);
+        }
+      );
+      return () => unsubscribeStudents();
     }
   }, [institutionId, db]);
 
   useEffect(() => {
     if (!db || !institutionId) return;
 
-    // Real-time logs (Removed orderBy for missing index compatibility)
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
     const qLogs = query(
       collection(db, "checkin_logs"), 
       where("institutionId", "==", institutionId),
-      limit(20)
+      where("timestamp", ">=", startOfToday)
     );
+    
     const unsubscribeLogs = onSnapshot(qLogs, (snapshot) => {
-      const logs = snapshot.docs.map(doc => {
+      let lateCnt = 0;
+      let presentCnt = 0;
+
+      // Sort logs by timestamp desc manually to avoid index requirement
+      const sortedDocs = [...snapshot.docs].sort((a, b) => {
+        const tA = (a.data().timestamp?.toDate?.() || 0).valueOf();
+        const tB = (b.data().timestamp?.toDate?.() || 0).valueOf();
+        return tB - tA;
+      });
+
+      const logs = sortedDocs.map(doc => {
         const d = doc.data();
+        let formattedTime = "방금 전";
+        let isLate = false;
+
+        try {
+          if (d.timestamp?.toDate) {
+            const date = d.timestamp.toDate();
+            formattedTime = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+            
+            if (d.status === 'in') {
+                if (formattedTime > arrivalTime) {
+                    isLate = true;
+                    lateCnt++;
+                } else {
+                    presentCnt++;
+                }
+            } else if (d.status === 'out') {
+                // We could track early leavers here if needed
+            }
+          }
+        } catch (e) {}
+
         return {
           id: doc.id,
           user: d.studentName as string,
-          action: d.status === 'out' ? "하교 완료" : "등교 확인됨",
+          action: d.status === 'out' ? "하교 완료" : (isLate ? "지각 등교" : "정상 등교"),
           timestamp: d.timestamp,
-          time: d.timestamp?.toDate ? d.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "방금 전",
+          time: formattedTime,
           icon: d.status === 'out' ? Car : UserCheck,
-          color: d.status === 'out' ? "text-amber-500" : "text-primary"
+          color: d.status === 'out' ? "text-amber-500" : (isLate ? "text-rose-500" : "text-emerald-500")
         };
       });
-      // Client-side sort
-      const sorted = logs.sort((a: any, b: any) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).slice(0, 8);
-      setActivities(sorted);
-      
-      // Today checkins count (simple simulation)
+      setActivities(logs.slice(0, 5));
       setTodayCheckins(snapshot.docs.length.toString());
+      setTodayLateCount(lateCnt);
+      setTodayPresentCount(presentCnt);
+    }, (err) => {
+      console.error("Logs listener error:", err);
     });
 
-    // Fetch pending pickups
     const qPickups = query(
         collection(db, "pickup_requests"), 
         where("institutionId", "==", institutionId),
@@ -124,17 +173,20 @@ export default function AdminDashboard() {
     );
     const unsubscribePickups = onSnapshot(qPickups, (snapshot) => {
         setPendingPickups(snapshot.docs.length.toString());
+    }, (err) => {
+        console.error("Pickups listener error:", err);
     });
 
-    // Fetch today's events
-    const today = new Date().toISOString().split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
     const qEvents = query(
         collection(db, "events"),
         where("institutionId", "==", institutionId),
-        where("date", "==", today)
+        where("date", "==", todayStr)
     );
     const unsubscribeEvents = onSnapshot(qEvents, (snapshot) => {
         setTodayEvents(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => {
+        console.error("Events listener error:", err);
     });
 
     return () => {
@@ -143,6 +195,28 @@ export default function AdminDashboard() {
         unsubscribeEvents();
     };
   }, [institutionId]);
+
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState("");
+
+  const handleNameUpdate = async () => {
+    if (!tempName.trim() || !db || !institutionId) {
+      setIsEditingName(false);
+      return;
+    }
+    try {
+      const q = query(collection(db, "institutions"), where("institutionId", "==", institutionId));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        await updateDoc(doc(db, "institutions", snap.docs[0].id), { name: tempName.trim() });
+        setInstName(tempName.trim());
+        setIsEditingName(false);
+      }
+    } catch (err) {
+      console.error("Name update error:", err);
+      setIsEditingName(false);
+    }
+  };
 
   const handlePhotoUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -162,123 +236,139 @@ export default function AdminDashboard() {
   };
 
   return (
-    <main className="flex-1 lg:ml-64 p-6 md:p-10 lg:p-14 bg-gray-50/30 min-h-screen">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12">
+    <main className="p-4 md:p-6 lg:p-8 bg-gray-50/30 min-h-screen">
+      <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
         <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="flex flex-col md:flex-row md:items-center gap-8"
+            className="flex flex-col md:flex-row md:items-center gap-4"
         >
-          <div className="flex items-center gap-5 bg-white px-7 py-4 rounded-[32px] border border-black/5 shadow-sm w-fit">
+          <div className="flex items-center gap-4 bg-white px-5 py-3 rounded-2xl border border-black/5 shadow-sm w-fit">
              <label className="relative cursor-pointer group">
-               <div className="w-18 h-18 rounded-2xl bg-white flex items-center justify-center overflow-hidden border border-black/5 shadow-inner">
+               <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center overflow-hidden border border-black/5 shadow-inner">
                   <img src={instPhoto} alt="Inst Logo" className="w-full h-full object-contain p-0.5" />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-2xl">
-                    <Camera size={18} className="text-white" />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl">
+                    <Camera size={14} className="text-white" />
                   </div>
                </div>
                <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpdate} />
              </label>
              <div>
                 <div className="flex items-center gap-2 mb-0.5">
-                  <h2 className="font-black text-black text-2xl leading-tight tracking-tight">{instName || "Children Gate"}</h2>
-                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${plan === 'premium' ? 'bg-amber-100 text-amber-600' : plan === 'enterprise' ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-400'}`}>
-                    {plan} {plan === 'basic' ? 'Plan' : 'Member'}
+                  {isEditingName ? (
+                    <div className="flex items-center gap-2">
+                      <input 
+                        autoFocus
+                        value={tempName}
+                        onChange={(e) => setTempName(e.target.value)}
+                        onBlur={handleNameUpdate}
+                        onKeyDown={(e) => e.key === 'Enter' && handleNameUpdate()}
+                        className="bg-gray-50 border-none ring-1 ring-black/10 rounded px-2 py-0.5 font-black text-black text-lg outline-none focus:ring-primary w-40"
+                      />
+                    </div>
+                  ) : (
+                    <h2 
+                      onClick={() => { setTempName(instName); setIsEditingName(true); }}
+                      className="font-black text-black text-lg leading-tight tracking-tight cursor-pointer hover:text-primary transition-colors flex items-center gap-2"
+                    >
+                      {instName || "Children Gate"}
+                      <Edit2 size={12} className="opacity-0 group-hover:opacity-100" />
+                    </h2>
+                  )}
+                  <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${plan === 'premium' ? 'bg-amber-100 text-amber-600' : plan === 'enterprise' ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-400'}`}>
+                    {plan}
                   </span>
                 </div>
-                <div className="flex items-center gap-3">
-                   <div className="flex items-center gap-1.5 bg-primary/10 px-3 py-1 rounded-full border border-primary/5">
-                      <span className="text-primary text-[10px] font-black uppercase tracking-widest">{institutionId || "ADMIN"}</span>
-                   </div>
-                   <span className="text-[10px] text-black/30 font-black uppercase tracking-widest leading-none border-l border-black/10 pl-3">기관 관리자</span>
+                <div className="flex items-center gap-2">
+                   <span className="text-[9px] text-black/30 font-black uppercase tracking-widest leading-none border-r border-black/10 pr-2">기관 관리자</span>
+                   <span className="text-primary text-[9px] font-black uppercase tracking-widest">{institutionId}</span>
                 </div>
              </div>
           </div>
-          <div className="w-px h-12 bg-black/5 hidden md:block"></div>
+          
+          <div className="w-px h-10 bg-black/5 hidden md:block"></div>
+          
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-black flex items-center gap-3">
-               <LayoutDashboard className="text-primary" size={28} />
-               대시보드
+            <h1 className="text-2xl font-black tracking-tight text-black flex items-center gap-2">
+               <LayoutDashboard className="text-primary" size={24} />
+               {instName || "Children Gate"}
             </h1>
-            <p className="text-black/40 font-bold text-xs tracking-tight">기관 전용 운영 관리 시스템입니다.</p>
+            <p className="text-black/40 font-bold text-[10px] tracking-tight">통합 운영 현황 및 상시 모니터링 보드입니다.</p>
           </div>
         </motion.div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
             <button 
               onClick={() => router.push('/dashboard/admin/students')}
-              className="apple-button-primary bg-black hover:bg-black/90 text-white flex items-center gap-2 shadow-2xl shadow-black/10 border-none px-6 py-4"
+              className="apple-button-primary bg-black hover:bg-black/90 text-white flex items-center gap-2 shadow-xl shadow-black/10 border-none px-5 py-3 text-xs font-black"
             >
-              <Users size={18} />
+              <Users size={14} />
               학생 명단 관리
             </button>
-            <div className="w-px h-10 bg-black/5 mx-2 hidden md:block"></div>
             <button 
               onClick={async () => {
                 if (window.confirm("로그아웃 하시겠습니까?")) {
                   try {
                     localStorage.removeItem("kg_auto_login");
-                    await auth?.signOut(); 
-                    window.location.href="/login?type=institution&logout=true"; 
-                  } catch (e) {
-                    window.location.href="/login?logout=true";
+                    if (auth) await auth.signOut();
+                    window.location.href = "/login?type=institution&logout=true";
+                  } catch (err) {
+                    window.location.href = "/login?logout=true";
                   }
                 }
               }}
-              className="w-12 h-12 bg-white rounded-2xl border border-black/5 flex items-center justify-center text-red-400 hover:text-red-600 hover:shadow-lg transition-all"
+              className="w-10 h-10 bg-white rounded-xl border border-black/5 flex items-center justify-center text-red-400 hover:text-red-600 hover:shadow-lg transition-all"
               title="Logout"
             >
-                <LogOut size={20} />
+                <LogOut size={16} />
             </button>
         </div>
       </header>
 
-      {/* Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      {/* Grid Layout - Improved responsiveness for iPad */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-6">
         
-        {/* Left Section (8 cols) */}
-        <div className="lg:col-span-8 space-y-8">
+        {/* Left Section (8 cols on XL, Full or half on MD) */}
+        <div className="md:col-span-2 xl:col-span-8 space-y-6">
            
-           {/* Summary Cards */}
-           <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+           {/* Summary Cards - Reduced Padding */}
+           <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <SummaryCard 
                 label="전체 학생 규모" 
                 value={totalStudents} 
                 subtext="기관 등록 인원"
                 icon={Users}
                 color="primary"
-                delay={0.1}
+                delay={0.05}
               />
                <SummaryCard 
                 label="오늘 등교 확인" 
-                value={todayCheckins} 
-                subtext="참석률 92%"
+                value={`${currentlyPresentCount}명`}
+                subtext={`정상 ${todayPresentCount} · 지각 ${todayLateCount}`}
                 icon={CheckCircle2}
                 color="emerald"
-                delay={0.2}
+                delay={0.10}
               />
               <SummaryCard 
                 label="하교 대기 요청" 
                 value={pendingPickups} 
-                subtext="실시간 매칭 중"
+                subtext="실시간 요청 중"
                 icon={Car}
                 color="amber"
                 alert={parseInt(pendingPickups) > 0}
-                delay={0.3}
+                delay={0.15}
               />
            </section>
 
-           {/* Quick Action Matrix */}
-           <section className="bg-white rounded-[40px] border border-black/5 shadow-sm p-8">
-              <div className="flex items-center justify-between mb-8">
-                  <h3 className="font-black text-xl flex items-center gap-2">
-                    <TrendingUp className="text-primary" size={24} />
-                    시스템 빠른 실행
-                  </h3>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+           {/* Quick Action Matrix - More compact */}
+           <section className="bg-white rounded-[32px] border border-black/5 shadow-sm p-6">
+              <h3 className="font-black text-lg flex items-center gap-2 mb-6">
+                <TrendingUp className="text-primary" size={20} />
+                시스템 빠른 실행
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <QuickAction 
-                    icon={Plus} label="학생 신규 등록" color="bg-blue-50 text-blue-600"
+                    icon={Plus} label="학생 등록" color="bg-blue-50 text-blue-600"
                     onClick={() => router.push('/dashboard/admin/students?add=true')} 
                   />
                   <QuickAction 
@@ -286,109 +376,137 @@ export default function AdminDashboard() {
                     onClick={() => router.push('/dashboard/admin/messages')}
                   />
                   <QuickAction 
-                    icon={QrCode} label="기관 QR 발급" color="bg-emerald-50 text-emerald-600"
+                    icon={QrCode} label="기관 QR" color="bg-emerald-50 text-emerald-600"
                     onClick={() => router.push('/dashboard/admin/qr')}
                   />
                   <QuickAction 
-                    icon={Calendar} label="일정/이벤트" color="bg-amber-50 text-amber-600"
+                    icon={Calendar} label="일정 관리" color="bg-amber-50 text-amber-600"
                     onClick={() => router.push('/dashboard/admin/events')}
                   />
               </div>
            </section>
 
-           {/* Schedule Board */}
-           <section className="bg-white rounded-[40px] border border-black/5 p-8 shadow-sm">
-               <div className="flex items-center justify-between mb-8">
-                  <h3 className="font-black text-xl flex items-center gap-2">
-                     <Calendar className="text-primary" size={24} />
-                     오늘의 주요 일정
+           {/* Schedule Board - List style to save space */}
+           <section className="bg-white rounded-[32px] border border-black/5 p-6 shadow-sm">
+               <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-black text-lg flex items-center gap-2">
+                     <Calendar className="text-primary" size={20} />
+                     오늘의 일정
                   </h3>
-                  <button onClick={() => router.push('/dashboard/admin/events')} className="text-xs font-black text-primary bg-primary/5 px-4 py-2 rounded-full hover:bg-primary/10 transition-all uppercase tracking-widest">Manage All</button>
+                  <button onClick={() => router.push('/dashboard/admin/events')} className="text-[10px] font-black text-primary bg-primary/5 px-3 py-1.5 rounded-full hover:bg-primary/10 transition-all uppercase tracking-widest">Manage</button>
                </div>
                
-               <div className="grid gap-4">
+               <div className="grid gap-3">
                   {todayEvents.length > 0 ? todayEvents.map(event => (
                     <motion.div 
-                        initial={{ opacity: 0, scale: 0.95 }}
+                        initial={{ opacity: 0, scale: 0.98 }}
                         animate={{ opacity: 1, scale: 1 }}
                         key={event.id} 
-                        className="p-6 bg-gray-50/50 rounded-2xl border border-black/5 flex items-center justify-between group hover:bg-white hover:shadow-xl hover:shadow-black/5 transition-all"
+                        className="px-5 py-4 bg-gray-50/50 rounded-xl border border-black/5 flex items-center justify-between group hover:bg-white hover:shadow-lg hover:shadow-black/5 transition-all"
                     >
-                       <div className="flex items-center gap-5">
-                          <div className={`w-1 h-12 rounded-full ${event.color || 'bg-primary'}`}></div>
+                       <div className="flex items-center gap-4">
+                          <div className={`w-1 h-8 rounded-full ${event.color || 'bg-primary'}`}></div>
                           <div>
-                             <p className="font-black text-black text-lg leading-none mb-2">{event.title}</p>
+                             <p className="font-black text-black text-sm mb-1">{event.title}</p>
                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black uppercase text-black/30 tracking-widest bg-white border border-black/5 px-2 py-0.5 rounded">{event.startTime} - {event.endTime}</span>
-                                <span className="text-[10px] font-black uppercase text-primary/60 tracking-widest">{event.target}</span>
+                                <span className="text-[9px] font-black uppercase text-black/30 tracking-widest bg-white border border-black/5 px-2 py-0.5 rounded">{event.startTime} - {event.endTime}</span>
                              </div>
                           </div>
                        </div>
-                       <ChevronRight size={20} className="text-black/10 group-hover:text-primary transition-all" />
+                       <ChevronRight size={16} className="text-black/10 group-hover:text-primary transition-all" />
                     </motion.div>
                   )) : (
-                    <div className="py-16 text-center border-2 border-dashed border-black/5 rounded-[32px] bg-gray-50/50">
-                        <Calendar className="mx-auto text-black/10 mb-4" size={40} />
-                        <p className="text-black/30 font-black italic">오늘 등록된 공식 일정이 없습니다.</p>
-                        <button onClick={() => router.push('/dashboard/admin/events')} className="mt-6 text-xs font-black text-primary border-b-2 border-primary/20 hover:border-primary pb-1 transition-all">신규 일정 등록하기</button>
+                    <div className="py-8 text-center border-2 border-dashed border-black/5 rounded-2xl bg-gray-50/50">
+                        <p className="text-black/30 text-xs font-black italic">오늘 등록된 공식 일정이 없습니다.</p>
                     </div>
                   )}
                </div>
            </section>
         </div>
 
-        {/* Right Section (4 cols) */}
-        <div className="lg:col-span-4 space-y-8">
+        {/* Right Section (4 cols on XL, Full or half on MD) */}
+        <div className="md:col-span-2 xl:col-span-4 space-y-6">
            
            {/* Activity Feed */}
-           <section className="bg-white rounded-[40px] border border-black/5 p-8 shadow-sm h-fit">
-              <h3 className="font-black text-xl mb-8 flex items-center gap-2">
-                <Activity className="text-primary" size={24} />
-                실시간 활동 스트림
+           <section className="bg-white rounded-[32px] border border-black/5 p-6 shadow-sm h-fit">
+              <h3 className="font-black text-lg mb-6 flex items-center gap-2">
+                <Activity className="text-primary" size={20} />
+                최신 활동
               </h3>
-              <div className="space-y-6 relative">
-                 <div className="absolute left-[19px] top-2 bottom-6 w-px bg-black/5"></div>
+              <div className="space-y-5 relative">
+                 <div className="absolute left-[17px] top-2 bottom-6 w-px bg-black/5"></div>
                  <AnimatePresence mode="popLayout">
                     {activities.length > 0 ? activities.map((act, idx) => (
                         <motion.div 
                            key={act.id} 
-                           initial={{ opacity: 0, y: 10 }}
+                           initial={{ opacity: 0, y: 5 }}
                            animate={{ opacity: 1, y: 0 }}
-                           exit={{ opacity: 0, scale: 0.9 }}
-                           transition={{ delay: idx * 0.05 }}
-                           className="flex items-center gap-4 group"
+                           exit={{ opacity: 0, scale: 0.95 }}
+                           transition={{ delay: idx * 0.03 }}
+                           className="flex items-center gap-3 group"
                         >
-                           <div className="w-10 h-10 rounded-full bg-white border border-black/5 shadow-sm flex items-center justify-center relative z-10 group-hover:border-primary transition-colors">
-                              <act.icon size={16} className={act.color || "text-primary"} />
+                           <div className="w-8 h-8 rounded-full bg-white border border-black/5 shadow-sm flex items-center justify-center relative z-10 group-hover:border-primary transition-colors">
+                              <act.icon size={12} className={act.color || "text-primary"} />
                            </div>
                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-black text-black truncate leading-tight mb-0.5">{act.user}</p>
-                              <p className="text-[10px] text-black/40 font-black uppercase tracking-widest">{act.action}</p>
+                              <p className="text-xs font-black text-black truncate leading-tight mb-0.5">{act.user}</p>
+                              <p className="text-[8px] text-black/40 font-black uppercase tracking-widest">{act.action}</p>
                            </div>
-                           <span className="text-[10px] font-black text-black/20 font-mono italic">{act.time}</span>
+                           <span className="text-[8px] font-black text-black/20 font-mono italic">{act.time}</span>
                         </motion.div>
-                    )) : <p className="text-center text-black/20 font-black py-20 italic">No Activity</p>}
+                    )) : <p className="text-center text-black/20 text-[10px] font-black py-10 italic">No Activity</p>}
                  </AnimatePresence>
               </div>
            </section>
 
-           {/* Support/Promotion Card */}
-           <section className="bg-gradient-to-br from-slate-900 to-black rounded-[40px] p-8 text-white shadow-2xl relative overflow-hidden group">
-              <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/20 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-700"></div>
-              <div className="relative z-10">
-                 <div className="flex items-center gap-3 mb-8">
-                    <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/10">
-                       <TrendingUp size={20} className="text-primary" />
-                    </div>
-                    <span className="font-black text-sm uppercase tracking-widest text-primary">Intelligence</span>
+           {/* Guides & Sharing Support */}
+           <section className="bg-white rounded-[32px] border border-black/5 p-6 shadow-sm overflow-hidden">
+              <h3 className="font-black text-lg mb-6 flex items-center gap-2">
+                <Share2 className="text-primary" size={20} />
+                가이드 및 공유
+              </h3>
+              
+              <div className="space-y-4">
+                 <div className="p-4 bg-gray-50 rounded-2xl border border-black/5 group hover:border-primary transition-all cursor-pointer" onClick={() => {
+                    const guideText = `[공지] 우리 아이 안전 등하교 시스템 'Children Gate' 도입 안내\n\n안녕하세요, 우리 기관에서는 더욱 안전하고 신속한 등하교 관리를 위해 Children Gate 시스템을 도입하였습니다.\n\n✅ 등록 방법\n1. QR 코드를 스캔하거나 앱에 접속하세요.\n2. 우리 기관 코드 [ ${institutionId} ] 를 입력하세요.\n3. 자녀 정보를 입력하면 즉시 등록됩니다.`;
+                    navigator.clipboard.writeText(guideText);
+                    alert("학부모 안내용 가이드가 복사되었습니다!");
+                 }}>
+                    <h4 className="text-xs font-black mb-1 flex items-center justify-between">
+                       학부모 안내 가이드
+                       <span className="text-[10px] text-primary">Copy</span>
+                    </h4>
+                    <p className="text-[10px] text-black/40 font-bold leading-relaxed">가정통신문이나 알림톡에 바로 붙여넣으세요.</p>
                  </div>
-                 <h4 className="text-2xl font-black mb-4 leading-tight tracking-tight">{"더 똑똑한\n출결 관리 시스템"}</h4>
-                 <p className="text-white/40 text-[11px] font-bold leading-relaxed mb-10">
-                    Children Gate만의 독자적인 매칭 알고리즘으로 하교 대기 시간을 40% 이상 단축했습니다. 모든 데이터는 종단간 암호화로 보호됩니다.
+
+                 <div className="p-4 bg-slate-900 rounded-2xl border border-white/10 group hover:border-primary transition-all cursor-pointer" onClick={() => {
+                    const manualText = `⚠️ Children Gate 관리자 주의사항\n\n* 학생 추가: 학부모가 직접 등록하면 자동 추가됩니다.\n* 학생 삭제: 시트에서 해당 행을 삭제하거나 상태를 [퇴소]로 변경하세요.\n* 데이터 보호: 본 시트에는 아이들의 소중한 개인정보가 담겨 있습니다.\n* 장비 체크: 라벨 프린터 전원을 매일 아침 확인해 주세요.`;
+                    navigator.clipboard.writeText(manualText);
+                    alert("관리자 매뉴얼이 복사되었습니다!");
+                 }}>
+                    <h4 className="text-xs font-black mb-1 text-white flex items-center justify-between">
+                       관리자 운영 매뉴얼
+                       <span className="text-[10px] text-primary">Manual</span>
+                    </h4>
+                    <p className="text-[10px] text-white/30 font-bold leading-relaxed">운영 시 주의사항 및 관리 팁입니다.</p>
+                 </div>
+              </div>
+           </section>
+
+           <section className="bg-gradient-to-br from-slate-900 to-black rounded-[32px] p-6 text-white shadow-xl relative overflow-hidden group">
+              <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/20 rounded-full blur-3xl"></div>
+              <div className="relative z-10">
+                 <div className="flex items-center gap-2 mb-6">
+                    <TrendingUp size={16} className="text-primary" />
+                    <span className="font-black text-[9px] uppercase tracking-widest text-primary">Intelligence</span>
+                 </div>
+                 <h4 className="text-lg font-black mb-2 leading-tight tracking-tight">똑똑한 출결 관리</h4>
+                 <p className="text-white/40 text-[9px] font-bold leading-relaxed mb-6">
+                    Children Gate만의 매칭 알고리즘으로 하교 시간을 혁신적으로 단축합니다.
                  </p>
-                 <button className="w-full py-5 bg-white text-black rounded-2xl font-black text-sm hover:bg-primary hover:text-white transition-all duration-300 flex items-center justify-center gap-3 shadow-xl">
-                    시스템 기능 제안 <ChevronRight size={18} />
-                 </button>
+                 <button className="w-full py-3.5 bg-white text-black rounded-xl font-black text-[10px] hover:bg-primary hover:text-white transition-all duration-300 flex items-center justify-center gap-2 shadow-lg">
+                    제안하기 <ChevronRight size={14} />
+                  </button>
               </div>
            </section>
 
@@ -409,26 +527,23 @@ function SummaryCard({ label, value, subtext, icon: Icon, color, alert, delay = 
 
    return (
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay }}
-        className={`p-8 bg-white rounded-[40px] border ${alert ? 'border-amber-400 animate-pulse ring-8 ring-amber-400/5' : 'border-black/5'} shadow-sm relative overflow-hidden group hover:shadow-2xl hover:shadow-black/5 transition-all duration-500`}
+        className={`p-5 bg-white rounded-[32px] border ${alert ? 'border-amber-400 ring-4 ring-amber-400/5' : 'border-black/5'} shadow-sm relative overflow-hidden group hover:shadow-xl hover:shadow-black/5 transition-all duration-300`}
       >
-         <div className="flex items-center justify-between mb-8">
-            <div className={`w-14 h-14 rounded-2xl ${colorMap[color] || colorMap.primary} flex items-center justify-center border transition-transform group-hover:-rotate-12 duration-500`}>
-               <Icon size={28} />
+         <div className="flex items-center justify-between mb-5">
+            <div className={`w-10 h-10 rounded-xl ${colorMap[color] || colorMap.primary} flex items-center justify-center border transition-transform group-hover:-rotate-12 duration-500`}>
+               <Icon size={20} />
             </div>
-            {alert && <div className="px-3 py-1 bg-amber-500 text-white text-[10px] font-black rounded-full uppercase tracking-widest animate-bounce">Live</div>}
          </div>
-         <div className="space-y-2">
-            <h4 className="text-5xl font-black tracking-tighter text-black">{value}</h4>
-            <p className="text-[10px] font-black text-black/30 uppercase tracking-[0.2em]">{label}</p>
+         <div className="space-y-1">
+            <h4 className="text-3xl font-black tracking-tighter text-black">{value}</h4>
+            <p className="text-[9px] font-black text-black/30 uppercase tracking-[0.15em]">{label}</p>
          </div>
-         <div className="mt-6 pt-6 border-t border-black/5 flex items-center justify-between">
-            <span className="text-[11px] font-black text-black/40 italic">{subtext}</span>
-            <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-               <ChevronRight size={14} className="text-black/20" />
-            </div>
+         <div className="mt-4 pt-4 border-t border-black/5 flex items-center justify-between">
+            <span className="text-[9px] font-black text-black/40 italic">{subtext}</span>
+            <ChevronRight size={12} className="text-black/10" />
          </div>
       </motion.div>
    );
@@ -437,15 +552,15 @@ function SummaryCard({ label, value, subtext, icon: Icon, color, alert, delay = 
 function QuickAction({ icon: Icon, label, onClick, color }: any) {
     return (
        <motion.button 
-         whileHover={{ y: -5 }}
-         whileTap={{ scale: 0.95 }}
+         whileHover={{ y: -3 }}
+         whileTap={{ scale: 0.98 }}
          onClick={onClick}
-         className="flex flex-col items-center justify-center p-8 bg-white rounded-[32px] border border-black/5 shadow-sm hover:border-primary/20 hover:shadow-2xl hover:shadow-primary/5 transition-all group"
+         className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-black/5 shadow-sm hover:border-primary/20 hover:shadow-lg transition-all group"
        >
-          <div className={`w-16 h-16 rounded-[24px] ${color} flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-500 shadow-sm border border-black/5`}>
-             <Icon size={28} />
+          <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-500 shadow-sm border border-black/5`}>
+             <Icon size={18} />
           </div>
-          <span className="text-[11px] font-black text-black/40 group-hover:text-black transition-colors uppercase tracking-widest">{label}</span>
+          <span className="text-[9px] font-black text-black/40 group-hover:text-black transition-colors uppercase tracking-widest">{label}</span>
        </motion.button>
     );
  }

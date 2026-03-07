@@ -75,33 +75,57 @@ export default function StudentDetailClient() {
             return;
           }
           setStudent({ id: studentSnap.id, ...data });
+
+          // Fetch Activities (logs)
+          const qLogs = query(
+            collection(db!, "checkin_logs"),
+            where("studentId", "==", id),
+            limit(100)
+          );
+          const logsSnap = await getDocs(qLogs);
+          const logsList = logsSnap.docs.map(doc => {
+            const d = doc.data();
+            const date = d.timestamp?.toDate ? d.timestamp.toDate() : new Date();
+            let checkInBy = d.parentName || "시스템";
+            if (d.type === 'manual') checkInBy = "선생님 직접 입력";
+            else if (d.type === 'qr') checkInBy = "QR 스캔";
+
+            return {
+              id: doc.id,
+              date: date.toISOString().split('T')[0],
+              checkIn: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+              checkOut: d.checkOutTime ? d.checkOutTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : "-",
+              status: d.status === 'in' ? "present" : (d.status === 'out' ? "absent" : (d.status || "present")),
+              checkedInBy: checkInBy,
+              checkedOutBy: d.approvedBy || "-"
+            } as Activity;
+          });
+
+          // Merge with new attendanceHistory if exists
+          const historyData = data.attendanceHistory || [];
+          const historyList = historyData.map((h: any, idx: number) => {
+            const date = h.timestamp?.toDate ? h.timestamp.toDate() : new Date(h.timestamp);
+            return {
+              id: `hist-${idx}`,
+              date: date.toISOString().split('T')[0],
+              checkIn: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              checkOut: "-",
+              status: h.status || "present",
+              checkedInBy: h.message || h.type,
+              checkedOutBy: "-"
+            } as Activity;
+          });
+
+          const combinedLogs = [...historyList, ...logsList].sort((a, b) => {
+             const timeA = new Date(a.date + 'T' + (a.checkIn.includes(':') ? a.checkIn : '00:00')).getTime();
+             const timeB = new Date(b.date + 'T' + (b.checkIn.includes(':') ? b.checkIn : '00:00')).getTime();
+             return timeB - timeA;
+          });
+          setActivities(combinedLogs.slice(0, 100));
         } else {
           router.push("/dashboard/admin/students");
           return;
         }
-
-        // Fetch Activities (logs)
-        const qLogs = query(
-          collection(db!, "checkin_logs"),
-          where("studentId", "==", id),
-          orderBy("timestamp", "desc"),
-          limit(30)
-        );
-        const logsSnap = await getDocs(qLogs);
-        const logsList = logsSnap.docs.map(doc => {
-          const d = doc.data();
-          const date = d.timestamp?.toDate() || new Date();
-          return {
-            id: doc.id,
-            date: date.toISOString().split('T')[0],
-            checkIn: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            checkOut: d.checkOutTime ? d.checkOutTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-",
-            status: d.status || "present",
-            checkedInBy: d.type === 'manual' ? "선생님 직접 입력" : "QR 스캔",
-            checkedOutBy: d.approvedBy || "-"
-          } as Activity;
-        });
-        setActivities(logsList);
 
       } catch (err) {
         console.error("Fetch student detail error:", err);
@@ -121,7 +145,7 @@ export default function StudentDetailClient() {
   };
 
   if (loading) return (
-    <div className="flex-1 lg:ml-64 min-h-screen bg-gray-50/50 flex items-center justify-center">
+    <div className="min-h-screen bg-gray-50/50 flex items-center justify-center">
        <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="font-bold text-black/40">정보를 불러오는 중...</p>
@@ -132,7 +156,7 @@ export default function StudentDetailClient() {
   if (!student) return null;
 
   return (
-    <main className="flex-1 lg:ml-64 p-6 md:p-10 lg:p-14 bg-gray-50/50 min-h-screen">
+    <main className="p-6 md:p-10 lg:p-14 bg-gray-50/50 min-h-screen">
       <header className="mb-10">
         <button 
           onClick={() => router.push('/dashboard/admin/students')}
@@ -161,8 +185,8 @@ export default function StudentDetailClient() {
             <div>
               <div className="flex items-center gap-3 mb-1">
                 <h1 className="text-4xl font-black tracking-tight text-black">{student.name}</h1>
-                <div className="flex items-center gap-1.5">
-                   <span className="px-3 py-1 bg-white border border-black/10 rounded-lg text-[10px] font-black shadow-sm uppercase tracking-widest">{student.grade}</span>
+                <div className="flex flex-wrap items-center gap-2">
+                   <span className="px-3 py-1 bg-white border border-black/10 rounded-lg text-[10px] font-black shadow-sm uppercase tracking-widest text-black/60">{student.grade}</span>
                    <span className="px-3 py-1 bg-primary text-white rounded-lg text-[10px] font-black shadow-sm uppercase tracking-widest">{student.class}</span>
                 </div>
               </div>
@@ -207,20 +231,20 @@ export default function StudentDetailClient() {
               <User size={20} className="text-primary" />
               General Profile
             </h3>
-            <ul className="space-y-4 text-sm">
-              <li className="flex justify-between border-b border-black/5 pb-3">
-                <span className="text-black/40 font-bold tracking-wide uppercase text-[10px]">Unique ID</span>
-                <span className="font-mono font-bold text-black bg-gray-50 px-2 py-0.5 rounded">{student.id.toUpperCase().substring(0,8)}</span>
-              </li>
-              <li className="flex justify-between border-b border-black/5 pb-3">
-                <span className="text-black/40 font-bold tracking-wide uppercase text-[10px]">Registration</span>
-                <span className="font-bold text-black">{student.createdAt?.toDate().toLocaleDateString() || "2026-01-10"}</span>
-              </li>
-              <li className="flex justify-between pb-1">
-                <span className="text-black/40 font-bold tracking-wide uppercase text-[10px]">Institution</span>
-                <span className="font-bold text-primary">{institutionId}</span>
-              </li>
-            </ul>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2 border-b border-black/5 pb-4 last:border-0 last:pb-0 items-center">
+                <span className="text-black/50 font-black tracking-widest uppercase text-[10px]">Unique ID</span>
+                <span className="font-mono font-bold text-black bg-gray-100 px-3 py-1 rounded-xl w-fit justify-self-end text-xs shadow-inner uppercase">{student.id.toUpperCase().substring(0,8)}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 border-b border-black/5 pb-4 last:border-0 last:pb-0 items-center">
+                <span className="text-black/50 font-black tracking-widest uppercase text-[10px]">Registration</span>
+                <span className="font-bold text-black text-right">{student.createdAt?.toDate ? student.createdAt.toDate().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }) : "2026. 01. 10."}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 border-b border-black/5 pb-4 last:border-0 last:pb-0 items-center">
+                <span className="text-black/50 font-black tracking-widest uppercase text-[10px]">Institution</span>
+                <span className="font-black text-primary text-right uppercase tracking-tight">{institutionId || "GATE-KCBL"}</span>
+              </div>
+            </div>
           </div>
 
           <div className="bg-white border border-black/5 rounded-[32px] p-8 shadow-sm">

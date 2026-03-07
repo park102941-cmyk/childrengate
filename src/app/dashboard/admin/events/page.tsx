@@ -59,6 +59,7 @@ interface SchoolEvent {
   color: string;
   isUrgent: boolean;
   location?: string;
+  weeklySchedules?: { [key: string]: { startTime: string; endTime: string } };
 }
 
 const mockAttendance: AttendanceRecord[] = [];
@@ -68,6 +69,9 @@ export default function EventsStatsPage() {
   const [gradeFilter, setGradeFilter] = useState("전체");
   const [classFilter, setClassFilter] = useState("전체");
   const [statusFilter, setStatusFilter] = useState<"all" | "present" | "late" | "absent">("all");
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [arrivalTime, setArrivalTime] = useState("09:00");
+  const [departureTime, setDepartureTime] = useState("18:00");
 
   const grades = ["전체", "E1", "E2", "E3", "E4", "E5", "M6", "M7", "M8", "H9", "H10", "H11", "H12"];
   const classes = ["전체", "기쁨반", "민들레반", "햇살반"];
@@ -95,6 +99,92 @@ export default function EventsStatsPage() {
     return () => unsubscribe();
   }, [institutionId]);
 
+  // Fetch Institution Settings (Arrival Time)
+  useEffect(() => {
+    if (!institutionId || !db) return;
+    const q = query(collection(db!, "institutions"), where("institutionId", "==", institutionId));
+    getDocs(q).then(snap => {
+      if (!snap.empty) {
+        const data = snap.docs[0].data();
+        const arr = data.arrivalTime || "09:00";
+        const dep = data.departureTime || "18:00";
+        setArrivalTime(arr);
+        setDepartureTime(dep);
+        setNewEvent(prev => ({ ...prev, startTime: arr, endTime: dep }));
+      }
+    });
+  }, [institutionId]);
+
+  // Fetch Real Attendance Data
+  useEffect(() => {
+    if (!institutionId || !db) return;
+
+    // 1. Fetch all students for this institution
+    const studentsQ = query(collection(db!, "students"), where("institutionId", "==", institutionId));
+    const unsubscribeStudents = onSnapshot(studentsQ, (studentsSnap) => {
+      const allStudents = studentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // 2. Fetch today's checkin_logs
+      const today = new Date().toISOString().split('T')[0];
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      
+      const logsQ = query(
+        collection(db!, "checkin_logs"),
+        where("institutionId", "==", institutionId),
+        where("timestamp", ">=", startOfDay)
+      );
+
+      const unsubscribeLogs = onSnapshot(logsQ, (logsSnap) => {
+        // Sort logs client-side to avoid index dependency
+        const sortedLogs = [...logsSnap.docs].sort((a, b) => {
+           const tA = (a.data().timestamp?.toDate?.() || 0).valueOf();
+           const tB = (b.data().timestamp?.toDate?.() || 0).valueOf();
+           return tB - tA;
+        });
+        const logs = sortedLogs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+        
+        // Map logs to AttendanceRecord
+        const records: AttendanceRecord[] = allStudents.map(student => {
+          const log = logs.find(l => l.studentId === student.id && l.status === "in");
+          
+          if (log) {
+            const logDate = log.timestamp?.toDate ? log.timestamp.toDate() : new Date();
+            const logTimeStr = logDate.toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit' });
+            
+            // Compare with arrivalTime
+            const isLate = logTimeStr > arrivalTime;
+
+            return {
+              id: student.id,
+              name: (student as any).name,
+              grade: (student as any).grade || "-",
+              class: (student as any).class || "-",
+              status: isLate ? "late" : "present",
+              time: logTimeStr,
+              date: today
+            };
+          } else {
+            return {
+              id: student.id,
+              name: (student as any).name,
+              grade: (student as any).grade || "-",
+              class: (student as any).class || "-",
+              status: "absent",
+              date: today
+            };
+          }
+        });
+
+        setAttendanceRecords(records);
+      });
+
+      return () => unsubscribeLogs();
+    });
+
+    return () => unsubscribeStudents();
+  }, [institutionId, arrivalTime]);
+
   const [showEventModal, setShowEventModal] = useState(false);
   const [newEvent, setNewEvent] = useState<Omit<SchoolEvent, "id">>({
     title: "",
@@ -111,44 +201,67 @@ export default function EventsStatsPage() {
     requiresRSVP: false,
     color: "bg-primary",
     isUrgent: false,
-    location: ""
+    location: "",
+    weeklySchedules: {}
   });
 
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const dayOptions = ["월", "화", "수", "목", "금", "토", "일"];
 
-  const handleAddEvent = () => {
-    if (!newEvent.title) return;
-    setEvents([...events, { ...newEvent, id: Date.now().toString(), recurringDays: selectedDays }]);
-    setShowEventModal(false);
-    setNewEvent({
-      title: "",
-      type: "행사",
-      date: new Date().toISOString().split('T')[0],
-      startTime: "09:00",
-      endTime: "10:00",
-      target: "전체",
-      description: "",
-      isRecurring: false,
-      recurringType: "daily",
-      recurringDays: [],
-      reminderMinutes: 30,
-      requiresRSVP: false,
-      color: "bg-primary",
-      isUrgent: false
-    });
-    setSelectedDays([]);
+  const handleAddEvent = async () => {
+    if (!newEvent.title || !db || !institutionId) return;
+    
+    const schedules: { [key: string]: { startTime: string; endTime: string } } = {};
+    if (newEvent.isRecurring && newEvent.recurringType === 'weekly') {
+      selectedDays.forEach(day => {
+        schedules[day] = newEvent.weeklySchedules?.[day] || { startTime: newEvent.startTime, endTime: newEvent.endTime };
+      });
+    }
+
+    try {
+      await addDoc(collection(db!, "events"), {
+        ...newEvent,
+        institutionId,
+        recurringDays: selectedDays,
+        weeklySchedules: schedules,
+        timestamp: serverTimestamp()
+      });
+      
+      setShowEventModal(false);
+      setNewEvent({
+        title: "",
+        type: "행사",
+        date: new Date().toISOString().split('T')[0],
+        startTime: "09:00",
+        endTime: "10:00",
+        target: "전체",
+        description: "",
+        isRecurring: false,
+        recurringType: "daily",
+        recurringDays: [],
+        reminderMinutes: 30,
+        requiresRSVP: false,
+        color: "bg-primary",
+        isUrgent: false,
+        location: "",
+        weeklySchedules: {}
+      });
+      setSelectedDays([]);
+    } catch (err) {
+      console.error("Add event error:", err);
+      alert("이벤트 생성에 실패했습니다.");
+    }
   };
 
   const filteredRecords = useMemo(() => {
-    return mockAttendance.filter(record => {
+    return attendanceRecords.filter(record => {
       const matchSearch = record.name.includes(searchTerm) || record.class.includes(searchTerm);
       const matchGrade = gradeFilter === "전체" || record.grade === gradeFilter;
       const matchClass = classFilter === "전체" || record.class === classFilter;
       const matchStatus = statusFilter === "all" || record.status === statusFilter;
       return matchSearch && matchGrade && matchClass && matchStatus;
     });
-  }, [searchTerm, gradeFilter, classFilter, statusFilter]);
+  }, [attendanceRecords, searchTerm, gradeFilter, classFilter, statusFilter]);
 
   const stats = useMemo(() => {
     const present = filteredRecords.filter(r => r.status === "present").length;
@@ -166,7 +279,7 @@ export default function EventsStatsPage() {
   }, [filteredRecords]);
 
   return (
-    <main className="flex-1 lg:ml-64 p-6 md:p-10 lg:p-14 bg-gray-50 min-h-screen">
+    <main className="p-6 md:p-10 lg:p-14 bg-gray-50 min-h-screen">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
         <div>
           <h1 className="text-4xl font-black tracking-tight text-black mb-1 flex items-center gap-3">
@@ -282,7 +395,7 @@ export default function EventsStatsPage() {
       <section className="bg-white rounded-[40px] border border-black/5 shadow-2xl shadow-black/5 overflow-hidden">
         <div className="p-8 border-b border-black/5 flex items-center justify-between bg-white text-black">
           <h2 className="text-xl font-black">출석 체크 내역</h2>
-          <span className="text-sm font-bold text-black/40 italic">2026년 2월 23일 (월) 기준</span>
+          <span className="text-sm font-bold text-black/40 italic">{new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })} 기준</span>
         </div>
         
         <div className="overflow-x-auto">
@@ -377,7 +490,11 @@ export default function EventsStatsPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm font-bold text-black/60">
                     <Clock size={18} className="text-primary" />
-                    {event.startTime} - {event.endTime}
+                    {event.recurringType === 'weekly' ? (
+                      <span className="text-[10px]">요일별 상이 (상세 보기)</span>
+                    ) : (
+                      `${event.startTime} - ${event.endTime}`
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 text-sm font-bold text-black/40">
                     <Users size={16} />
@@ -460,7 +577,7 @@ export default function EventsStatsPage() {
                   </div>
 
                   {newEvent.isRecurring && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="space-y-6 pt-4 border-t border-black/10">
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="space-y-6 pt-4 border-t border-black/10 text-black">
                       <div className="flex gap-4">
                         {['daily', 'weekly'].map(type => (
                           <button 
@@ -487,16 +604,101 @@ export default function EventsStatsPage() {
                       )}
                     </motion.div>
                   )}
-                  {!newEvent.isRecurring && (
-                    <div className="pt-4">
-                      <input 
-                        type="date" 
-                        value={newEvent.date}
-                        onChange={e => setNewEvent({...newEvent, date: e.target.value})}
-                        className="w-full px-6 py-4 bg-white border border-black/5 rounded-2xl outline-none font-bold text-black"
-                      />
-                    </div>
-                  )}
+
+                  <div className="mt-6 pt-6 border-t border-black/10">
+                    {!newEvent.isRecurring && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[10px] font-black text-black/30 mb-2 block uppercase tracking-widest pl-2">날짜</label>
+                          <input 
+                            type="date" 
+                            value={newEvent.date}
+                            onChange={e => setNewEvent({...newEvent, date: e.target.value})}
+                            className="w-full px-6 py-4 bg-white border border-black/5 rounded-2xl outline-none font-bold text-black"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                           <div>
+                              <label className="text-[10px] font-black text-black/30 mb-2 block uppercase tracking-widest pl-2">등교 시간</label>
+                              <input 
+                                type="time" 
+                                value={newEvent.startTime}
+                                onChange={e => setNewEvent({...newEvent, startTime: e.target.value})}
+                                className="w-full px-4 py-4 bg-white border border-black/5 rounded-2xl outline-none font-bold text-black"
+                              />
+                           </div>
+                           <div>
+                              <label className="text-[10px] font-black text-black/30 mb-2 block uppercase tracking-widest pl-2">하교 시간</label>
+                              <input 
+                                type="time" 
+                                value={newEvent.endTime}
+                                onChange={e => setNewEvent({...newEvent, endTime: e.target.value})}
+                                className="w-full px-4 py-4 bg-white border border-black/5 rounded-2xl outline-none font-bold text-black"
+                              />
+                           </div>
+                        </div>
+                      </div>
+                    )}
+                    {newEvent.isRecurring && newEvent.recurringType === 'daily' && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[10px] font-black text-black/30 mb-2 block uppercase tracking-widest pl-2">등교 시간</label>
+                          <input 
+                             type="time" 
+                             value={newEvent.startTime}
+                             onChange={e => setNewEvent({...newEvent, startTime: e.target.value})}
+                             className="w-full px-6 py-4 bg-white border border-black/5 rounded-2xl outline-none font-bold text-black"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-black/30 mb-2 block uppercase tracking-widest pl-2">하교 시간</label>
+                          <input 
+                             type="time" 
+                             value={newEvent.endTime}
+                             onChange={e => setNewEvent({...newEvent, endTime: e.target.value})}
+                             className="w-full px-6 py-4 bg-white border border-black/5 rounded-2xl outline-none font-bold text-black"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {newEvent.isRecurring && newEvent.recurringType === 'weekly' && selectedDays.length > 0 && (
+                      <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                        {selectedDays.map(day => (
+                          <div key={day} className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-black/5">
+                            <span className="w-10 h-10 bg-primary text-white rounded-xl flex items-center justify-center font-black text-sm">{day}</span>
+                            <div className="flex-1 grid grid-cols-2 gap-3">
+                              <div className="relative">
+                                <span className="absolute -top-2 left-3 bg-white px-1 text-[8px] font-black text-black/20 uppercase tracking-widest">등교</span>
+                                <input 
+                                  type="time" 
+                                  value={newEvent.weeklySchedules?.[day]?.startTime || newEvent.startTime}
+                                  onChange={e => {
+                                    const sched = { ...newEvent.weeklySchedules };
+                                    sched[day] = { ...(sched[day] || { endTime: newEvent.endTime }), startTime: e.target.value };
+                                    setNewEvent({ ...newEvent, weeklySchedules: sched });
+                                  }}
+                                  className="w-full px-4 py-3 bg-gray-50 border border-black/5 rounded-xl outline-none font-bold text-black text-sm"
+                                />
+                              </div>
+                              <div className="relative">
+                                <span className="absolute -top-2 left-3 bg-white px-1 text-[8px] font-black text-black/20 uppercase tracking-widest">하교</span>
+                                <input 
+                                  type="time" 
+                                  value={newEvent.weeklySchedules?.[day]?.endTime || newEvent.endTime}
+                                  onChange={e => {
+                                    const sched = { ...newEvent.weeklySchedules };
+                                    sched[day] = { ...(sched[day] || { startTime: newEvent.startTime }), endTime: e.target.value };
+                                    setNewEvent({ ...newEvent, weeklySchedules: sched });
+                                  }}
+                                  className="w-full px-4 py-3 bg-gray-50 border border-black/5 rounded-xl outline-none font-bold text-black text-sm"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* 3. Innovative Ideas 1-5 Implementation */}

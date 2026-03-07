@@ -161,20 +161,26 @@ export default function LoginPage() {
       localStorage.setItem("kg_login_type", userType);
       
       const provider = new GoogleAuthProvider();
-      // Use popup for desktop, redirect for mobile? Or just popup and handle blocked.
       try {
         const result = await signInWithPopup(auth, provider);
         handleUserPostLogin(result.user, userType);
       } catch (popupErr: any) {
         console.warn("Popup blocked or failed, trying redirect...", popupErr);
-        if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-by-user') {
+        if (popupErr.code === 'auth/popup-blocked') {
+          setError("팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해 주세요.");
+          setLoading(false);
+          // Still try redirect as a last resort, but user is warned
           await signInWithRedirect(auth, provider);
+        } else if (popupErr.code === 'auth/cancelled-by-user') {
+          setLoading(false);
         } else {
-          throw popupErr;
+          // Generic fallback
+          await signInWithRedirect(auth, provider);
         }
       }
     } catch (err: any) {
-      setError("구글 로그인 중 오류가 발생했습니다.");
+      console.error("Google Login Error:", err);
+      setError("구글 로그인 중 오류가 발생했습니다. (브라우저 설정을 확인해 주세요)");
       setLoading(false);
     }
   };
@@ -194,7 +200,8 @@ export default function LoginPage() {
   };
 
   const handleGuestLogin = () => {
-    router.push("/p-portal?guestId=guest");
+    const instId = searchParams?.get("instId");
+    router.push(instId ? `/p-portal?guestId=guest&id=${instId}` : "/p-portal?guestId=guest");
   };
 
   return (

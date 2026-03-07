@@ -17,9 +17,11 @@ import {
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
+import { useAuth } from "@/context/AuthContext";
 
 export default function SmartGatePage({ params }: { params: Promise<{ id: string }> }) {
   const { id: instId } = use(params);
+  const { user, role, loading: authLoading } = useAuth();
   const router = useRouter();
   const [instName, setInstName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -42,7 +44,18 @@ export default function SmartGatePage({ params }: { params: Promise<{ id: string
     fetchInst();
   }, [instId]);
 
-  if (loading) {
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user && instId) {
+      if (role === 'admin' || role === 'staff') {
+        router.push('/dashboard/admin');
+      } else {
+        router.push(`/p-portal?id=${instId}`);
+      }
+    }
+  }, [user, role, authLoading, instId]);
+
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <div className="animate-pulse flex flex-col items-center gap-4">
@@ -89,7 +102,13 @@ export default function SmartGatePage({ params }: { params: Promise<{ id: string
             transition={{ delay: 0.2 }}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => router.push(`/p-portal?id=${instId}`)}
+            onClick={() => {
+              if (user) {
+                router.push(`/p-portal?id=${instId}`);
+              } else {
+                router.push(`/login?type=parent&instId=${instId}`);
+              }
+            }}
             className="w-full bg-primary p-10 rounded-[40px] shadow-2xl shadow-primary/30 flex flex-col items-center gap-4 text-center ring-4 ring-primary/5"
           >
             <div className="w-20 h-20 bg-white/20 rounded-3xl flex items-center justify-center text-white">
@@ -107,7 +126,7 @@ export default function SmartGatePage({ params }: { params: Promise<{ id: string
             transition={{ delay: 0.3 }}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => router.push(`/login?guest=true&instId=${instId}`)}
+            onClick={() => router.push(`/gate/${instId}/guest-reg`)}
             className="w-full bg-slate-900 p-10 rounded-[40px] shadow-2xl shadow-black/20 flex flex-col items-center gap-4 text-center ring-4 ring-black/5"
           >
             <div className="w-20 h-20 bg-white/10 rounded-3xl flex items-center justify-center text-white">

@@ -29,7 +29,8 @@ export default function SettingsPage() {
     labelIncludesClass: true,
     labelIncludesPhone: false,
     printerDPI: "203",
-    labelSize: "4x6"
+    labelSize: "4x6",
+    arrivalTime: "09:00"
   });
 
   // Fetch institution data
@@ -61,6 +62,7 @@ export default function SettingsPage() {
               name: data.name || prev.name,
               email: data.email || prev.email,
               phone: data.phone || prev.phone,
+              arrivalTime: data.arrivalTime || prev.arrivalTime,
             }));
           }
         } catch (error) {
@@ -194,6 +196,7 @@ export default function SettingsPage() {
             name: settings.name,
             email: settings.email,
             phone: settings.phone,
+            arrivalTime: settings.arrivalTime,
           });
         } else {
           // Try document ID
@@ -202,6 +205,7 @@ export default function SettingsPage() {
               name: settings.name,
               email: settings.email,
               phone: settings.phone,
+              arrivalTime: settings.arrivalTime,
             });
           } catch {}
         }
@@ -218,14 +222,15 @@ export default function SettingsPage() {
   };
 
   return (
-    <main className="flex-1 lg:ml-64 p-6 md:p-10 lg:p-14">
+    <main className="p-6 md:p-10 lg:p-14">
       <header className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-4xl font-black tracking-tight text-black mb-1">
-            {t.dashboard.settings?.title || "기관 설정"}
+            {settings.name}
           </h1>
-          <p className="text-black/50 font-semibold">
-            {t.dashboard.settings?.subtitle || "칠드런 게이트 시스템의 전반적인 환경을 설정합니다."}
+          <p className="text-black/50 font-semibold flex items-center gap-2">
+            <Building2 size={16} className="text-primary" />
+            {t.dashboard.settings?.title || "기관 정보 및 시스템 설정"}
           </p>
         </div>
         

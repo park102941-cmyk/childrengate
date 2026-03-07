@@ -212,7 +212,7 @@ function SignupContent() {
           createdAt: new Date(),
         });
 
-        router.push(`/p/${formData.instCode.trim()}`);
+        router.push(`/p-portal?id=${formData.instCode.trim()}`);
       }
     } catch (err: unknown) {
       console.error("Signup error:", err);
@@ -235,10 +235,25 @@ function SignupContent() {
       if (!auth || !db) throw new Error("Firebase is not initialized");
       const provider = new GoogleAuthProvider();
       
-      // Save userType to survive the redirect
+      // Save userType to survive potential redirections (though we use popup now)
       localStorage.setItem("kg_signup_type", userType);
       
-      await signInWithRedirect(auth, provider);
+      try {
+        const result = await signInWithPopup(auth, provider);
+        handleUserPostSignup(result.user, userType);
+      } catch (popupErr: any) {
+        console.warn("Popup blocked or failed, trying redirect fallback...", popupErr);
+        // Only fallback to redirect if popup is explicitly blocked or if we want to provide a fallback
+        // However, redirect is what's failing for this user. 
+        // Let's provide a clearer error if it fails instead of potentially broken redirect.
+        if (popupErr.code === 'auth/popup-blocked') {
+          setError("팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해 주세요.");
+          setLoading(false);
+        } else {
+          // If popup fails for other reasons, we CAN try redirect, but let's be cautious
+          await signInWithRedirect(auth, provider);
+        }
+      }
     } catch (err: unknown) {
       console.error("Google Signup error:", err);
       const errorMessage = err instanceof Error ? err.message : (t.auth as any).errorSignup;

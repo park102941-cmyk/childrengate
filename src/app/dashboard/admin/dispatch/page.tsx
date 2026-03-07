@@ -6,109 +6,335 @@
 
 
 import { useState, useMemo, useEffect } from "react";
-import { Search, Car, UserCheck, Clock, CheckCircle2, ChevronRight, X, AlertCircle } from "lucide-react";
+import { Search, Car, UserCheck, Clock, CheckCircle2, ChevronRight, X, AlertCircle, Phone, MessageSquare, MoreVertical, LogIn, LogOut, RefreshCcw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot, updateDoc, doc, Timestamp, orderBy } from "firebase/firestore";
+import { collection, query, where, onSnapshot, updateDoc, doc, Timestamp, orderBy, getDocs, limit, addDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 
 interface DispatchStudent {
-  id: string;
+  id: string; // Document ID (Request ID or Student ID)
+  studentId: string;
   name: string;
   grade: string;
   class: string;
   parentName: string;
-  status: "present" | "pickup_requested" | "released";
+  parentPhone?: string;
+  status: "absent" | "present" | "pickup_requested" | "released";
   requestTime?: string;
   photo?: string;
+  hasPendingRequest?: boolean; // New flag for the approval flow
+  isApproved?: boolean;
+  activeRequestId?: string; // Explicitly track the request ID
 }
-
-// Mock Data
-const initialStudents: DispatchStudent[] = [
-  { id: "1", name: "김민수", grade: "E1", class: "기쁨반", parentName: "김철수", status: "pickup_requested", requestTime: "14:30" },
-  { id: "2", name: "이서연", grade: "E1", class: "기쁨반", parentName: "이영희", status: "present" },
-  { id: "3", name: "박지훈", grade: "E2", class: "민들레반", parentName: "박동건", status: "pickup_requested", requestTime: "14:32" },
-  { id: "4", name: "최유진", grade: "E2", class: "민들레반", parentName: "최수영", status: "released", requestTime: "14:15" },
-  { id: "5", name: "정은우", grade: "E3", class: "햇살반", parentName: "정지훈", status: "pickup_requested", requestTime: "14:35" },
-  { id: "6", name: "강현우", grade: "E3", class: "햇살반", parentName: "강민수", status: "present" },
-];
 
 export default function DispatchDashboard() {
   const [students, setStudents] = useState<DispatchStudent[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filter, setFilter] = useState<"all" | "pickup_requested" | "released">("all");
+  const [filter, setFilter] = useState<"all" | "pickup_requested" | "present" | "released" | "absent">("all");
   const { institutionId } = useAuth();
+
+  const [pickupRequests, setPickupRequests] = useState<any[]>([]);
+  const [allStudentsData, setAllStudentsData] = useState<any[]>([]);
 
   useEffect(() => {
     if (!db || !institutionId) return;
 
-    // Listen to real-time pickup requests for this institution
-    const q = query(
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    // 1. Listen to real-time pickup requests (TODAY ONLY for better sync)
+    const qRequests = query(
       collection(db, "pickup_requests"),
       where("institutionId", "==", institutionId),
-      where("status", "in", ["pending", "approved", "completed"]),
+      where("requestTime", ">=", Timestamp.fromDate(startOfToday)),
       orderBy("requestTime", "desc")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => {
-        const d = doc.data();
-        return {
-          id: doc.id,
-          name: d.studentName,
-          class: d.className,
-          grade: d.grade || "미지정",
-          parentName: d.parentName,
-          status: d.status === "pending" ? "pickup_requested" : d.status === "completed" ? "released" : "present",
-          requestTime: d.requestTime?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          photo: d.photo
-        };
-      }) as DispatchStudent[];
-      setStudents(data);
+    const unsubscribeRequests = onSnapshot(qRequests, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setPickupRequests(data);
+    }, (err) => {
+      console.error("Pickup sync error:", err);
     });
 
-    return () => unsubscribe();
-  }, []);
+    // 2. Listen to ALL students
+    const qStudents = query(
+      collection(db, "students"),
+      where("institutionId", "==", institutionId)
+    );
 
-  const handleRelease = async (id: string) => {
+    const unsubscribeStudents = onSnapshot(qStudents, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setAllStudentsData(data);
+    });
+
+    return () => {
+      unsubscribeRequests();
+      unsubscribeStudents();
+    };
+  }, [institutionId]);
+
+  // Combine both sources and unify state
+  useEffect(() => {
+    const combined = allStudentsData.map(student => {
+      const activeRequest = pickupRequests.find(r => r.studentId === student.id && (r.status === "pending" || r.status === "approved"));
+      
+      let status: DispatchStudent["status"] = student.status || "absent";
+      let requestTime = "";
+      let id = student.id; 
+      let hasPendingRequest = false;
+      let isApproved = false;
+
+      if (activeRequest) {
+        id = activeRequest.id;
+        
+        if (activeRequest.status === "pending") {
+          // If pending, keep as 'present' so they don't disappear from the in-house list yet
+          status = "present";
+          hasPendingRequest = true;
+        } else if (activeRequest.status === "approved") {
+          // If approved, move to 'pickup_requested' status so they leave the in-house list
+          status = "pickup_requested";
+          isApproved = true;
+        }
+        
+        if (activeRequest.requestTime?.toDate) {
+          requestTime = activeRequest.requestTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+      } else {
+        const completedRequest = pickupRequests.find(r => r.studentId === student.id && r.status === "completed");
+        if (completedRequest) {
+          status = "released";
+          if (completedRequest.requestTime?.toDate) {
+            requestTime = completedRequest.requestTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          }
+        }
+      }
+
+      return {
+        id: id,
+        studentId: student.id,
+        name: student.name || "알 수 없음",
+        class: student.class || "기본반",
+        grade: student.grade || "미지정",
+        parentName: student.parent || student.parentName || (student.parentEmail ? student.parentEmail.split('@')[0] : "보호자"),
+        parentPhone: student.contact || student.phone || student.parentPhone,
+        status: status,
+        requestTime: requestTime,
+        photo: student.photo,
+        hasPendingRequest,
+        isApproved,
+        activeRequestId: activeRequest ? activeRequest.id : undefined
+      } as DispatchStudent;
+    });
+
+    setStudents(combined);
+  }, [pickupRequests, allStudentsData]);
+
+  // Actions
+  const handleApprove = async (student: DispatchStudent) => {
+    // Optimistic Update
+    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, status: 'pickup_requested', isApproved: true, hasPendingRequest: false } : s));
+
+    try {
+      if (!db || !student.activeRequestId) {
+        console.error("Missing DB or Active Request ID");
+        // Revert on error
+        return;
+      }
+      
+      await updateDoc(doc(db, "pickup_requests", student.activeRequestId), {
+        status: "approved",
+        approvedAt: serverTimestamp()
+      });
+
+      await updateDoc(doc(db, "students", student.studentId), { 
+        status: "pickup_requested",
+        attendanceHistory: arrayUnion({
+          timestamp: new Date(),
+          type: "PICKUP_APPROVED",
+          message: "하교 승인됨",
+          status: "waiting"
+        })
+      });
+    } catch (e) {
+      console.error("Error approving request:", e);
+      alert("승인 처리 중 오류 발생");
+    }
+  };
+
+  // Actions
+  const handleCheckIn = async (student: DispatchStudent) => {
+     try {
+        if (!db || !institutionId) return;
+        await updateDoc(doc(db, "students", student.studentId), { 
+          status: "present",
+          attendanceHistory: arrayUnion({
+            timestamp: new Date(),
+            type: "CHECK_IN",
+            message: "정상 등교 (관리자 확인)",
+            status: "present"
+          })
+        });
+        await addDoc(collection(db, "checkin_logs"), {
+           studentId: student.studentId,
+           studentName: student.name,
+           className: student.class,
+           grade: student.grade,
+           parentName: "Admin", // Assuming admin is performing check-in
+           institutionId,
+           timestamp: serverTimestamp(),
+           status: "in"
+        });
+        alert(`${student.name} 등교 확인되었습니다.`);
+     } catch (e) {
+        console.error("Error checking in student:", e);
+        alert("등교 처리 중 오류 발생");
+     }
+  };
+
+  const handleResetStatus = async (student: DispatchStudent) => {
+    if (!confirm(`${student.name}의 출결 상태를 초기화(미등교)하시겠습니까?`)) return;
+    try {
+       if (!db || !institutionId) return;
+       await updateDoc(doc(db, "students", student.studentId), { status: "absent" });
+       // Also cancel any pending requests
+       const q = query(collection(db, "pickup_requests"), where("studentId", "==", student.studentId), where("status", "==", "pending"));
+       const snap = await getDocs(q);
+       for (const d of snap.docs) {
+          await updateDoc(doc(db, "pickup_requests", d.id), { status: "cancelled" });
+       }
+       alert(`${student.name}의 상태가 초기화되었습니다.`);
+    } catch (e) {
+       console.error("Error resetting student status:", e);
+       alert("상태 초기화 중 오류 발생");
+    }
+  };
+
+  const handleAppMessage = async (student: DispatchStudent) => {
+    const msg = prompt(`${student.name} 보호자에게 보낼 알림장 내용을 입력하세요:`);
+    if (!msg) return;
+    try {
+       if (!db || !institutionId) return;
+       await addDoc(collection(db, "messages"), {
+          studentId: student.studentId,
+          institutionId,
+          sender: "admin",
+          content: msg,
+          timestamp: serverTimestamp(),
+          type: "notice"
+       });
+       alert("학부모 포털로 알림이 전송되었습니다.");
+    } catch (e) {
+       console.error("Error sending app message:", e);
+       alert("알림 전송 중 오류 발생");
+    }
+  };
+
+  const handleCall = (student: DispatchStudent) => {
+    if (student.parentPhone) {
+      window.open(`tel:${student.parentPhone}`);
+    } else {
+      alert("등록된 보호자 연락처가 없습니다.");
+    }
+  };
+
+  const handleSms = (student: DispatchStudent) => {
+    if (student.parentPhone) {
+      window.open(`sms:${student.parentPhone}`);
+    } else {
+      alert("등록된 보호자 연락처가 없습니다.");
+    }
+  };
+
+  const handleRelease = async (student: DispatchStudent) => {
+    // Optimistic Update
+    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, status: 'released' } : s));
+
     try {
       if (!db) return;
-      await updateDoc(doc(db, "pickup_requests", id), {
-        status: "completed",
-        releasedAt: Timestamp.now()
-      });
       
-      // Also notify reporting API
+      const requestId = student.activeRequestId;
+      if (!requestId) {
+        // Fallback: try to find an approved request if not in state
+        const q = query(
+          collection(db, "pickup_requests"), 
+          where("studentId", "==", student.studentId),
+          where("status", "==", "approved"),
+          limit(1)
+        );
+        const snap = await getDocs(q);
+        if (snap.empty) {
+          throw new Error("진행 중인 하교 승인 내역을 찾을 수 없습니다.");
+        }
+        await updateDoc(doc(db, "pickup_requests", snap.docs[0].id), {
+          status: "completed",
+          releasedAt: Timestamp.now()
+        });
+      } else {
+        await updateDoc(doc(db, "pickup_requests", requestId), {
+          status: "completed",
+          releasedAt: Timestamp.now()
+        });
+      }
+      
+      await updateDoc(doc(db, "students", student.studentId), { 
+        status: "absent",
+        lastReleaseTime: Timestamp.now(),
+        attendanceHistory: arrayUnion({
+          timestamp: new Date(),
+          type: "PICKUP_RELEASED",
+          message: "하교 인계 완료",
+          status: "absent"
+        })
+      });
+
+      alert(`${student.name} 은(는) 하교 처리가 완료되었습니다.`);
+      
       fetch("/api/sync-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: "PICKUP_RELEASED",
-          requestId: id,
+          studentId: student.studentId,
           timestamp: new Date().toISOString()
         })
       }).catch(e => console.error("Report sync failed", e));
 
     } catch (e) {
       console.error("Error releasing student:", e);
+      alert(e instanceof Error ? e.message : "하교 완료 처리 중 오류 발생");
     }
   };
 
-  const handleCancelRelease = async (id: string) => {
+  const handleCancelRelease = async (student: DispatchStudent) => {
     try {
-      if (!db) return;
-      await updateDoc(doc(db, "pickup_requests", id), {
+      if (!db || !student.activeRequestId) return;
+
+      await updateDoc(doc(db, "pickup_requests", student.activeRequestId), {
         status: "pending",
         releasedAt: null
       });
+
+      await updateDoc(doc(db, "students", student.studentId), { status: "present" });
     } catch (e) {
-      console.error("Error cancelling release:", e);
+      console.error("Error canceling release:", e);
+      alert("인계 취소 중 오류 발생");
     }
   };
 
   const filteredStudents = useMemo(() => {
     let result = students;
-    if (filter !== "all") {
+    if (filter === "present") {
+      result = result.filter(s => s.status === "present" || s.status === "pickup_requested");
+    } else if (filter !== "all") {
       result = result.filter(s => s.status === filter);
     }
     if (searchTerm) {
@@ -133,7 +359,7 @@ export default function DispatchDashboard() {
   }, [filteredStudents]);
 
   return (
-    <main className="flex-1 lg:ml-64 p-6 md:p-10 lg:p-14 bg-gray-50 min-h-screen">
+    <main className="p-6 md:p-10 lg:p-14 bg-gray-50 min-h-screen">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
         <div>
           <h1 className="text-4xl font-black tracking-tight text-black mb-1 flex items-center gap-3">
@@ -149,10 +375,12 @@ export default function DispatchDashboard() {
 
       {/* Stats/Filters Row */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
-        <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-black/5 self-stretch md:self-auto">
+        <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-black/5 self-stretch md:self-auto overflow-x-auto">
           <FilterButton active={filter === "all"} onClick={() => setFilter("all")} label="전체" icon={UserCheck} count={students.length} />
-          <FilterButton active={filter === "pickup_requested"} onClick={() => setFilter("pickup_requested")} label="하교 대기" icon={Clock} count={students.filter(s => s.status === 'pickup_requested').length} alert />
+          <FilterButton active={filter === "present"} onClick={() => setFilter("present")} label="원내 보육" icon={UserCheck} count={students.filter(s => s.status === 'present' || s.status === 'pickup_requested').length} />
+          <FilterButton active={filter === "pickup_requested"} onClick={() => setFilter("pickup_requested")} label="하교 중" icon={Clock} count={students.filter(s => s.status === 'pickup_requested').length} alert />
           <FilterButton active={filter === "released"} onClick={() => setFilter("released")} label="하교 완료" icon={CheckCircle2} count={students.filter(s => s.status === 'released').length} />
+          <FilterButton active={filter === "absent"} onClick={() => setFilter("absent")} label="미등교" icon={AlertCircle} count={students.filter(s => s.status === 'absent').length} />
         </div>
 
         <div className="relative w-full md:w-auto min-w-[300px]">
@@ -197,23 +425,29 @@ export default function DispatchDashboard() {
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
                         key={student.id} 
-                        className={`p-6 flex flex-col sm:flex-row items-center justify-between gap-6 transition-colors ${student.status === 'pickup_requested' ? 'bg-orange-50/30' : 'hover:bg-gray-50'}`}
+                        className={`p-6 flex flex-col xl:flex-row items-center justify-between gap-6 transition-colors ${student.status === 'pickup_requested' ? 'bg-orange-50/30' : 'hover:bg-gray-50'}`}
                      >
-                        <div className="flex items-center gap-5 w-full sm:w-auto">
+                        <div className="flex items-center gap-5 w-full xl:w-auto">
                            <div className={`w-14 h-14 rounded-full flex items-center justify-center font-black text-xl border-2 shadow-sm ${
                               student.status === 'pickup_requested' ? 'bg-orange-100 text-orange-600 border-orange-200' : 
                               student.status === 'released' ? 'bg-emerald-100 text-emerald-600 border-emerald-200' : 
-                              'bg-gray-100 text-gray-500 border-white'
+                              student.status === 'present' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                              'bg-gray-100 text-gray-500 border-white opacity-50'
                            }`}>
                               {student.photo ? <img src={student.photo} alt={student.name} className="w-full h-full object-cover rounded-full" /> : student.name.charAt(0)}
                            </div>
                            
                            <div>
                               <div className="flex items-center gap-3 mb-1">
-                                <h3 className="text-xl font-black text-black">{student.name}</h3>
+                                <h3 className={`text-xl font-black ${student.status === 'absent' ? 'text-black/30' : 'text-black'}`}>{student.name}</h3>
+                                {student.hasPendingRequest && (
+                                   <span className="px-2.5 py-1 bg-amber-100 text-amber-700 text-[10px] font-black rounded-lg uppercase flex items-center gap-1 border border-amber-200 shadow-sm animate-pulse w-fit">
+                                      <Car size={10} /> 하교 요청됨
+                                   </span>
+                                )}
                                 {student.status === 'pickup_requested' && (
-                                   <span className="px-2.5 py-1 bg-orange-100 text-orange-700 text-[10px] font-black rounded-lg uppercase flex items-center gap-1 border border-orange-200 shadow-sm animate-pulse w-fit">
-                                      <Car size={10} /> 픽업 대기중
+                                   <span className="px-2.5 py-1 bg-orange-100 text-orange-700 text-[10px] font-black rounded-lg uppercase flex items-center gap-1 border border-orange-200 shadow-sm w-fit">
+                                      <UserCheck size={10} /> 하교 승인됨
                                    </span>
                                 )}
                                 {student.status === 'released' && (
@@ -221,31 +455,78 @@ export default function DispatchDashboard() {
                                       <CheckCircle2 size={10} /> 하교 완료
                                    </span>
                                 )}
+                                {student.status === 'absent' && !student.hasPendingRequest && (
+                                   <span className="px-2.5 py-1 bg-gray-100 text-gray-400 text-[10px] font-black rounded-lg uppercase flex items-center gap-1 border border-gray-200 w-fit">
+                                      <AlertCircle size={10} /> 미등교
+                                   </span>
+                                )}
                               </div>
                               <p className="text-sm font-bold text-black/50 flex items-center gap-2">
-                                보호자: <span className="text-black">{student.parentName}</span>
-                                {student.requestTime && student.status === 'pickup_requested' && (
+                                보호자: <span className={student.status === 'absent' ? 'text-black/30' : 'text-black'}>{student.parentName}</span>
+                                {student.requestTime && (student.hasPendingRequest || student.status === 'pickup_requested' || student.status === 'released') && (
                                    <>
                                      <span className="w-1 h-1 bg-black/20 rounded-full"></span>
-                                     <span className="text-orange-600 flex items-center gap-1"><Clock size={12}/> {student.requestTime} 요청</span>
+                                     <span className={`${student.status === 'released' ? 'text-black/30' : 'text-orange-600'} flex items-center gap-1`}>
+                                       <Clock size={12}/> {student.requestTime} {student.status === 'released' ? '하교' : '요청'}
+                                     </span>
                                    </>
                                 )}
                               </p>
                            </div>
                         </div>
 
-                        <div className="flex gap-3 w-full sm:w-auto">
+                        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                           {/* Quick Actions Support */}
+                           <div className="flex items-center gap-1 pr-4 border-r border-black/5">
+                              <button onClick={() => handleCall(student)} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all active:scale-95" title="전화">
+                                <Phone size={18} />
+                              </button>
+                              <button onClick={() => handleSms(student)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-all active:scale-95" title="문자">
+                                <MessageSquare size={18} />
+                              </button>
+                              <button onClick={() => handleAppMessage(student)} className="p-2.5 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 transition-all active:scale-95" title="앱 알림">
+                                <RefreshCcw size={18} />
+                              </button>
+                           </div>
+
+                           {student.status === 'absent' && (
+                              <button 
+                                onClick={() => handleCheckIn(student)}
+                                className="flex-1 sm:flex-none px-6 py-3 bg-emerald-500 text-white rounded-2xl font-black shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 active:scale-95 transition-all flex items-center justify-center gap-2"
+                              >
+                                수동 등교 처리 <LogIn size={18} />
+                              </button>
+                           )}
+
+                           {student.hasPendingRequest && (
+                              <button 
+                                onClick={() => handleApprove(student)}
+                                className="flex-1 sm:flex-none px-6 py-3 bg-amber-500 text-white rounded-2xl font-black shadow-xl shadow-amber-500/20 hover:bg-amber-600 active:scale-95 transition-all flex items-center justify-center gap-2"
+                              >
+                                하교 승인하기 <CheckCircle2 size={18} />
+                              </button>
+                           )}
+
+                           {student.status === 'present' && !student.hasPendingRequest && (
+                              <button 
+                                onClick={() => handleResetStatus(student)}
+                                className="flex-1 sm:flex-none px-4 py-3 bg-white border border-black/10 text-black/50 rounded-2xl font-bold hover:bg-red-50 hover:text-red-500 active:scale-95 transition-all flex items-center justify-center gap-2"
+                              >
+                                <RefreshCcw size={16} /> 등교 취소
+                              </button>
+                           )}
+
                            {student.status === 'pickup_requested' && (
                               <button 
-                                onClick={() => handleRelease(student.id)}
+                                onClick={() => handleRelease(student)}
                                 className="flex-1 sm:flex-none px-6 py-3 bg-black text-white rounded-2xl font-black shadow-xl shadow-black/20 hover:bg-gray-800 active:scale-95 transition-all flex items-center justify-center gap-2"
                               >
-                                아이 인계하기 <ChevronRight size={18} />
+                                하교 완료 처리 <CheckCircle2 size={18} />
                               </button>
                            )}
                            {student.status === 'released' && (
                               <button 
-                                onClick={() => handleCancelRelease(student.id)}
+                                onClick={() => handleCancelRelease(student)}
                                 className="flex-1 sm:flex-none px-4 py-3 bg-white border border-black/10 text-black/50 rounded-2xl font-bold hover:bg-gray-50 active:scale-95 transition-all flex items-center justify-center gap-2"
                               >
                                 <X size={16} /> 인계 취소

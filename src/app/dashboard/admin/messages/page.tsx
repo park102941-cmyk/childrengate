@@ -158,7 +158,7 @@ export default function MessagesPage() {
   };
 
   return (
-    <main className="flex-1 lg:ml-64 p-6 md:p-10 lg:p-14 bg-gray-50 min-h-screen">
+    <main className="p-6 md:p-10 lg:p-14 bg-gray-50 min-h-screen">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
         <div>
           <h1 className="text-4xl font-black tracking-tight text-black mb-1 flex items-center gap-3">

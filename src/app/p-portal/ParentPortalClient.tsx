@@ -1,20 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { 
   QrCode, Plus, MessageSquare, FileIcon, ChevronRight, User, 
   ShieldCheck, Check, AlertCircle, XCircle, Timer, LogIn, 
-  LogOut, Edit2, Phone, Mail, Share2, Calendar, CheckCircle2 
-} from "lucide-react";
+  LogOut, Edit2, Phone, Mail, Share2, Calendar, CheckCircle2,
+  Trash2, ArrowRight, Clock, UserCheck, Users, Heart, Home} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db, auth } from "@/lib/firebase";
 import { 
   collection, addDoc, serverTimestamp, query, where, doc, 
-  getDoc, getDocs, orderBy, limit, onSnapshot, updateDoc
+  getDoc, getDocs, orderBy, limit, onSnapshot, updateDoc, deleteDoc, arrayUnion
 } from "firebase/firestore";
 
 interface Child {
@@ -30,8 +30,8 @@ interface Child {
   allergies?: string;
   notes?: string;
   teacherName?: string;
-  teacherPhone?: string;
   teacherEmail?: string;
+  barcodeId?: string;
 }
 
 interface MessageItem {
@@ -48,13 +48,19 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
   const { language } = useLanguage();
   const { user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const redirectRef = useRef(false);
   const instId = portalId || searchParams?.get("id") || "";
 
-  const [activeTab, setActiveTab] = useState<"home" | "messages" | "attendance">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "messages" | "attendance" | "profile">("home");
   const [instName, setInstName] = useState("");
+  const [currentInstId, setCurrentInstId] = useState(instId);
+  const [allInstitutions, setAllInstitutions] = useState<{id: string, name: string}[]>([]);
+  const [showInstList, setShowInstList] = useState(false);
   const [showAddChild, setShowAddChild] = useState(false);
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [hasDismissedInitialModal, setHasDismissedInitialModal] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [children, setChildren] = useState<Child[]>([]);
@@ -66,24 +72,72 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
   const [selectedChildren, setSelectedChildren] = useState<string[]>([]);
   const [memo, setMemo] = useState("");
   const [realMessages, setRealMessages] = useState<MessageItem[]>([]);
+  const [existingClasses, setExistingClasses] = useState<string[]>([]);
+  const [activePickupRequests, setActivePickupRequests] = useState<any[]>([]);
+  const [showJoinInst, setShowJoinInst] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
+  const [joinError, setJoinError] = useState("");
+  const [familyInfo, setFamilyInfo] = useState({
+    fatherName: "", fatherPhone: "", fatherBirth: "",
+    motherName: "", motherPhone: "", motherBirth: "",
+    address: "", email: ""
+  });
+  
+  // Pickup Requests Listener for Parent
+  useEffect(() => {
+    if (!currentInstId || !db) return;
+    const q = query(
+      collection(db, "pickup_requests"),
+      where("institutionId", "==", currentInstId),
+      where("status", "in", ["pending", "approved"]),
+      orderBy("requestTime", "desc"),
+      limit(50)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setActivePickupRequests(data);
+    }, (err) => {
+      console.error("Parent pickup listener error:", err);
+    });
+    return () => unsubscribe();
+  }, [currentInstId]);
+
+  const standardGrades = [
+    "PK (영유아)", "K (유치원)", 
+    "E1 (초1)", "E2 (초2)", "E3 (초3)", "E4 (초4)", "E5 (초5)", "E6 (초6)",
+    "M1 (중1)", "M2 (중2)", "M3 (중3)",
+    "H1 (고1)", "H2 (고2)", "H3 (고3)", "기타"
+  ];
 
   useEffect(() => {
-    if (authLoading) return;
+    if (instId) setCurrentInstId(instId);
+  }, [instId]);
+
+  useEffect(() => {
+    if (authLoading || redirectRef.current) return;
     
     // Guest check
     const guestId = searchParams?.get("guestId");
     
     // If not guest and not logged in, boot to login after a safety delay
+    let timer: NodeJS.Timeout;
+
     if (!guestId && !user) {
-      const timer = setTimeout(() => {
-        if (!user && !authLoading && !searchParams?.get("guestId")) {
-          console.log("Parent Guard: No session found after 4s, returning to login");
-          window.location.href = "/login?type=parent";
+      timer = setTimeout(() => {
+        if (!user && !authLoading && !searchParams?.get("guestId") && !redirectRef.current) {
+          console.log("Parent Guard: No session found after 10s, returning to login");
+          const redirectUrl = currentInstId ? `/login?type=parent&instId=${currentInstId}` : "/login?type=parent";
+          redirectRef.current = true;
+          router.push(redirectUrl);
         }
-      }, 4000);
-      return () => clearTimeout(timer);
+      }, 10000); // 10s stability delay
     }
-  }, [user, authLoading, searchParams]);
+    
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [user, authLoading, searchParams, currentInstId, router]);
 
   const mockTeachers: Record<string, {name: string, phone: string, email: string}> = {
     "기쁨반": { name: "이지은 선생님", phone: "010-1234-5678", email: "jieun@kidsgate.com" },
@@ -92,19 +146,49 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
   };
 
   const handleCopyInvite = () => {
-    const url = `${window.location.origin}/signup?code=${instId}`;
+    const url = `${window.location.origin}/signup?code=${currentInstId}`;
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     alert("초대 링크가 복사되었습니다!");
   };
 
-  // Fetch Institution Info
+  // Fetch All Institutions parent is involved with
   useEffect(() => {
-    if (instId && db) {
+    if (!user?.email || !db) return;
+    const fetchAllInsts = async () => {
+      try {
+        const q = query(collection(db!, "students"), where("parentEmail", "==", user.email));
+        const snap = await getDocs(q);
+        const uniqueIds = Array.from(new Set(snap.docs.map(d => d.data().institutionId))).filter(Boolean) as string[];
+        
+        const details = await Promise.all(uniqueIds.map(async (id) => {
+          const iq = query(collection(db!, "institutions"), where("institutionId", "==", id));
+          const isnap = await getDocs(iq);
+          return { id, name: isnap.empty ? id : isnap.docs[0].data().name };
+        }));
+        
+        // Ensure currentInstId is in the list if it's from URL
+        if (currentInstId && !details.find(d => d.id === currentInstId)) {
+           const iq = query(collection(db!, "institutions"), where("institutionId", "==", currentInstId));
+           const isnap = await getDocs(iq);
+           details.push({ id: currentInstId, name: isnap.empty ? currentInstId : isnap.docs[0].data().name });
+        }
+
+        setAllInstitutions(details);
+      } catch (err) {
+        console.error("Error fetching multi-inst:", err);
+      }
+    };
+    fetchAllInsts();
+  }, [user?.email, currentInstId, children.length]);
+
+  // Fetch current Institution Info
+  useEffect(() => {
+    if (currentInstId && db) {
       const fetchInst = async () => {
         try {
-          const q = query(collection(db!, "institutions"), where("institutionId", "==", instId));
+          const q = query(collection(db!, "institutions"), where("institutionId", "==", currentInstId));
           const querySnapshot = await getDocs(q);
           if (!querySnapshot.empty) {
             setInstName(querySnapshot.docs[0].data().name);
@@ -114,61 +198,88 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
         }
       };
       fetchInst();
-    }
-  }, [instId]);
 
-  // Fetch Children
-  useEffect(() => {
-    if (!instId || !db || !user?.email) return;
-
-    const fetchChildren = async () => {
-      try {
-        const q = query(
-          collection(db!, "students"), 
-          where("parentEmail", "==", user.email),
-          where("institutionId", "==", instId)
-        );
-        const snapshot = await getDocs(q);
-        const childList = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as Child[];
-        setChildren(childList);
-        if (childList.length > 0) {
-          setHasDismissedInitialModal(true);
-        }
-      } catch (error) {
-        console.error("Error fetching children:", error);
-      }
-    };
-
-    fetchChildren();
-  }, [instId, user?.email]);
-
-  // Fetch Attendance Logs (Client-side Sort to avoid index error)
-  useEffect(() => {
-    if (activeTab === "attendance" && instId && db) {
-      const fetchLogs = async () => {
+      // Fetch existing classes for this institution
+      const fetchClasses = async () => {
         try {
-          const q = query(collection(db!, "checkin_logs"), where("institutionId", "==", instId));
-          const snapshot = await getDocs(q);
-          const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          const sorted = logs.sort((a: any, b: any) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
-          setAttendanceLogs(sorted);
-        } catch (error) {
-          console.error("Error fetching logs:", error);
+          const q = query(collection(db!, "students"), where("institutionId", "==", currentInstId));
+          const snap = await getDocs(q);
+          const classes = Array.from(new Set(snap.docs.map(d => d.data().class))).filter(Boolean) as string[];
+          setExistingClasses(classes.sort());
+        } catch (err) {
+          console.error("Error fetching classes:", err);
         }
       };
-      fetchLogs();
+      fetchClasses();
     }
-  }, [activeTab, instId]);
+  }, [currentInstId]);
+
+  // Fetch Children for current institution
+  // Fetch Children for current institution - Real-time
+  useEffect(() => {
+    const guestId = searchParams?.get("guestId");
+    if (!currentInstId || !db || (!user?.email && !guestId)) return;
+
+    const constraints = [];
+    constraints.push(where("institutionId", "==", currentInstId));
+    
+    // Create query - Firestore OR is tricky, so we'll fetch then filter or use separate listeners.
+    // Given the small number of children, fetching by instId and filtering is safer for robustness.
+    const q = query(
+      collection(db!, "students"), 
+      where("institutionId", "==", currentInstId)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Child))
+        .filter(c => {
+          // Filter by parent email or contact (guestId)
+          if (user?.email && (c as any).parentEmail === user.email) return true;
+          if (guestId && ((c as any).contact === guestId || (c as any).parentPhone === guestId)) return true;
+          return false;
+        });
+      
+      setChildren(list);
+      if (list.length > 0) {
+        setHasDismissedInitialModal(true);
+      }
+    }, (err) => {
+      console.error("Children fetch error:", err);
+    });
+
+    return () => unsubscribe();
+  }, [currentInstId, user?.email, searchParams]);
+
+  // Fetch Attendance Logs - Real-time
+  useEffect(() => {
+    if (activeTab === "attendance" && currentInstId && db) {
+      const q = query(
+        collection(db!, "checkin_logs"), 
+        where("institutionId", "==", currentInstId),
+        orderBy("timestamp", "desc"),
+        limit(50)
+      );
+      
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Filter logs so parents only see their own children
+        const myChildIds = children.map(c => c.id);
+        const filteredLogs = logs.filter((log: any) => myChildIds.includes(log.studentId));
+        setAttendanceLogs(filteredLogs);
+      }, (err) => {
+        console.error("Logs listener error:", err);
+      });
+      return () => unsubscribe();
+    }
+  }, [activeTab, currentInstId, children]);
 
   // Messages Listener
   useEffect(() => {
-    if (!instId || !db) return;
+    if (!currentInstId || !db) return;
     const q = query(
       collection(db!, "messages"),
-      where("institutionId", "==", instId),
+      where("institutionId", "==", currentInstId),
       orderBy("timestamp", "desc"),
       limit(20)
     );
@@ -177,33 +288,88 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
         id: d.id, ...d.data()
       })) as MessageItem[];
       setRealMessages(msgs);
+    }, (err) => {
+      console.error("Message listener error:", err);
     });
     return () => unsubscribe();
-  }, [instId]);
+  }, [currentInstId]);
+  // Fetch Family Info
+  useEffect(() => {
+    if (!user?.email || !db) return;
+    const fetchProfile = async () => {
+      try {
+        const docRef = doc(db!, "parent_profiles", user.email!);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setFamilyInfo(docSnap.data() as any);
+        } else {
+          setFamilyInfo(prev => ({ ...prev, email: user.email! }));
+        }
+      } catch (err) {
+        console.error("Profile fetch error:", err);
+      }
+    };
+    fetchProfile();
+  }, [user?.email]);
 
   const handleToggleSelect = (id: string) => {
     setSelectedChildren(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
   };
 
   const handleBatchDropOff = async () => {
-    const targets = children.filter(c => (selectedChildren.length === 0 || selectedChildren.includes(c.id)) && c.status === "absent");
-    if (targets.length === 0) return alert("등교 가능한 자녀를 선택해 주세요.");
+    // Allow drop-off for any child that is NOT in "present" status, or even if they are present but parent wants to refresh check-in
+    const targets = children.filter(c => (selectedChildren.length === 0 || selectedChildren.includes(c.id)));
     
-    if (!confirm(`${targets.map(t => t.name).join(", ")} 등교 승인?`)) return;
+    if (targets.length === 0) return alert("등교를 확인할 자녀를 먼저 선택해 주세요.");
+    
+    const confirmMsg = targets.length === 1 
+      ? `"${targets[0].name}" 학생의 등교를 확인하시겠습니까?`
+      : `선택한 ${targets.length}명의 학생들의 등교를 확인하시겠습니까?`;
+
+    if (!confirm(confirmMsg)) return;
 
     try {
       setLoading(true);
       for (const child of targets) {
+        // 1. Log attendance
         await addDoc(collection(db!, "checkin_logs"), {
           studentId: child.id,
           studentName: child.name,
-          institutionId: instId,
+          className: child.class,
+          grade: child.grade,
+          parentName: user?.displayName || user?.email || searchParams?.get("guestId") || "학부모",
+          institutionId: currentInstId,
           timestamp: serverTimestamp(),
           status: "in"
         });
-        await updateDoc(doc(db!, "students", child.id), { status: "present" });
+        
+        // 2. Clear out any pending pickup requests for this child if they were "pickup_requested"
+        if (child.status === "pickup_requested") {
+           const q = query(
+             collection(db!, "pickup_requests"),
+             where("studentId", "==", child.id),
+             where("status", "==", "pending")
+           );
+           const snap = await getDocs(q);
+           for (const d of snap.docs) {
+             await updateDoc(doc(db!, "pickup_requests", d.id), { 
+               status: "cancelled",
+               cancelledAt: serverTimestamp()
+             });
+           }
+        }
+
+        // 3. Update student status and record history
+        await updateDoc(doc(db!, "students", child.id), { 
+          status: "present",
+          attendanceHistory: arrayUnion({
+            timestamp: new Date(),
+            type: "CHECK_IN",
+            message: "부모님 직접 등교 승인",
+            status: "present"
+          })
+        });
       }
-      setChildren(children.map(c => targets.some(t => t.id === c.id) ? { ...c, status: "present" } : c));
       setSelectedChildren([]);
       alert("등교 확인 완료!");
     } catch (error) {
@@ -224,13 +390,25 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
         await addDoc(collection(db!, "pickup_requests"), {
           studentId: child.id,
           studentName: child.name,
-          institutionId: instId,
+          className: child.class,
+          grade: child.grade,
+          parentName: user?.displayName || user?.email || searchParams?.get("guestId") || "학부모",
+          institutionId: currentInstId,
           status: "pending",
           requestTime: serverTimestamp()
         });
-        await updateDoc(doc(db!, "students", child.id), { status: "pickup_requested" });
+        // Record history of the request
+        await updateDoc(doc(db!, "students", child.id), {
+          attendanceHistory: arrayUnion({
+            timestamp: new Date(),
+            type: "PICKUP_REQUESTED",
+            message: "부모님 하교 요청",
+            status: "pending"
+          })
+        });
+        // Remove immediate status update - teacher will confirm release
+        // await updateDoc(doc(db!, "students", child.id), { status: "pickup_requested" });
       }
-      setChildren(children.map(c => targets.some(t => t.id === c.id) ? { ...c, status: "pickup_requested" } : c));
       setSelectedChildren([]);
       alert("하교 요청 완료!");
     } catch (error) {
@@ -242,7 +420,8 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
 
   const handleSaveChild = async (e: React.FormEvent, continueAdding = false) => {
     e.preventDefault();
-    if (!newChild.name || !db || !user?.email) return;
+    const guestId = searchParams?.get("guestId");
+    if (!newChild.name || !db || (!user?.email && !guestId)) return;
 
     setLoading(true);
     try {
@@ -254,8 +433,9 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
         birthDate: newChild.birthDate,
         allergies: newChild.allergies,
         notes: newChild.notes,
-        parentEmail: user.email,
-        institutionId: instId,
+        parentEmail: user?.email || null,
+        contact: guestId || null,
+        institutionId: currentInstId,
         status: "absent" as const,
         checkIn: null,
         checkOut: null,
@@ -266,7 +446,11 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
         await updateDoc(doc(db, "students", editingChildId), childData);
         setChildren(prev => prev.map(c => c.id === editingChildId ? { ...c, ...childData, photo: childData.photo || undefined } as Child : c));
       } else {
-        const docRef = await addDoc(collection(db, "students"), childData);
+        // Generate Unique Barcode ID
+        const barcodeId = `kg-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+        const finalChildData = { ...childData, barcodeId };
+        
+        const docRef = await addDoc(collection(db, "students"), finalChildData);
         const newChildEntry: Child = {
           id: docRef.id,
           name: childData.name,
@@ -278,9 +462,11 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
           checkOut: childData.checkOut,
           birthDate: childData.birthDate,
           allergies: childData.allergies,
-          notes: childData.notes
+          notes: childData.notes,
+          barcodeId
         };
         setChildren(prev => [...prev, newChildEntry]);
+        setShowWelcome(true);
       }
 
       if (!continueAdding) {
@@ -292,6 +478,35 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
     } catch (error) {
       console.error(error);
       alert("저장 실패");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleJoinInstitution = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!joinCode.trim() || !db) return;
+    
+    setLoading(true);
+    setJoinError("");
+    try {
+      const q = query(collection(db, "institutions"), where("institutionId", "==", joinCode.trim().toUpperCase()));
+      const snap = await getDocs(q);
+      
+      if (snap.empty) {
+        setJoinError("유효하지 않은 기관 코드입니다. 다시 확인해 주세요.");
+      } else {
+        const instData = snap.docs[0].data();
+        setCurrentInstId(instData.institutionId);
+        setInstName(instData.name);
+        setShowJoinInst(false);
+        setJoinCode("");
+        // Immediately show add child for this new institution
+        setShowAddChild(true);
+      }
+    } catch (err) {
+      console.error("Join inst error:", err);
+      setJoinError("오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
@@ -321,41 +536,159 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
     setShowAddChild(true);
   };
 
+  const handleRemoveInstitution = async (id: string) => {
+    if (!confirm("이 기관을 목록에서 삭제하시겠습니까? 해당 기관에 등록된 모든 자녀의 출결 정보도 볼 수 없게 됩니다.")) return;
+    try {
+        setLoading(true);
+        const q = query(collection(db!, "students"), where("parentEmail", "==", user?.email), where("institutionId", "==", id));
+        const snap = await getDocs(q);
+        await Promise.all(snap.docs.map(d => deleteDoc(doc(db!, "students", d.id))));
+        
+        const remaining = allInstitutions.filter(inst => inst.id !== id);
+        setAllInstitutions(remaining);
+        if (currentInstId === id) {
+           setCurrentInstId(remaining[0]?.id || "");
+        }
+        setShowInstList(false);
+        alert("기관 연결이 해제되었습니다.");
+    } catch (err) {
+        console.error("Remove inst error:", err);
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  const handleSaveFamilyInfo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.email || !db) return;
+    setLoading(true);
+    try {
+      await updateDoc(doc(db!, "parent_profiles", user.email!), familyInfo);
+      alert("가족 정보가 저장되었습니다.");
+    } catch (err) {
+      // If doc doesn't exist, create it
+      try {
+        const { setDoc } = await import("firebase/firestore");
+        await setDoc(doc(db!, "parent_profiles", user.email!), familyInfo);
+        alert("가족 정보가 저장되었습니다.");
+      } catch (innerErr) {
+        console.error("Save profile error:", innerErr);
+        alert("저장 실패");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white flex flex-col max-w-md mx-auto relative shadow-2xl">
-      {loading && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/80 backdrop-blur-md font-black">
-          데이터 처리 중...
-        </div>
-      )}
-      
-      <header className="bg-white px-8 py-6 sticky top-0 z-40 flex items-center justify-between border-b border-black/[0.03]">
-         <div className="flex items-center gap-4">
-            <Link href="/" className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center p-0.5 border border-black/[0.03] shadow-inner overflow-hidden">
+      <AnimatePresence>
+        {loading && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-white/80 backdrop-blur-md font-black">
+             데이터 처리 중...
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <header className="bg-white px-8 py-6 sticky top-0 z-40 flex items-center justify-between border-b border-black/[0.03] backdrop-blur-xl bg-white/80">
+         <div className="flex items-center gap-4 cursor-pointer group" onClick={() => setShowInstList(true)}>
+            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center p-0.5 border border-black/[0.03] shadow-inner overflow-hidden">
                <img src="/children_gate_logo.png" alt="Logo" className="w-full h-full object-contain" />
-            </Link>
+            </div>
             <div>
-               <h1 className="font-black text-lg text-black">{instName || "Children Gate"}</h1>
-               <span className="text-[10px] font-black text-black/30 uppercase">{instId}</span>
+               <h1 className="font-black text-lg text-black flex items-center gap-2 group-hover:text-primary transition-colors">
+                  {instName || "Children Gate"}
+                  <ArrowRight size={16} className="text-black/10 group-hover:text-primary rotate-90" />
+               </h1>
+               <span className="text-[10px] font-black text-black/30 uppercase">{currentInstId}</span>
             </div>
          </div>
-          <button 
-            onClick={async () => { 
-              if(confirm("로그아웃 하시겠습니까?")) { 
-                try {
-                  localStorage.removeItem("kg_auto_login");
-                  await auth?.signOut(); 
-                  window.location.href="/login?type=parent&logout=true"; 
-                } catch (e) {
-                  window.location.href="/login?logout=true";
-                }
-              } 
-            }} 
-            className="p-2 text-black/20 hover:text-red-500 transition-colors"
-          >
-             <LogOut size={20} />
-          </button>
+         <div className="flex items-center gap-2">
+            <button 
+                onClick={async () => { 
+                if(confirm("로그아웃 하시겠습니까?")) { 
+                    try {
+                    localStorage.removeItem("kg_auto_login");
+                    if (auth) {
+                        await auth.signOut();
+                    }
+                    window.location.href="/login?type=parent&logout=true"; 
+                    } catch (e) {
+                    window.location.href="/login?logout=true";
+                    }
+                } 
+                }} 
+                className="p-2 text-black/10 hover:text-red-500 transition-colors"
+                title="Logout"
+            >
+                <LogOut size={20} />
+            </button>
+         </div>
       </header>
+
+      {/* Institution Switcher Modal */}
+      <AnimatePresence>
+        {showInstList && (
+           <div className="fixed inset-0 z-[50] flex items-end justify-center bg-black/40 backdrop-blur-sm p-4">
+              <motion.div 
+                 initial={{ y: "100%" }}
+                 animate={{ y: 0 }}
+                 exit={{ y: "100%" }}
+                 className="bg-white w-full max-w-md rounded-t-[40px] rounded-b-[40px] p-8 pb-12 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              >
+                 <div className="flex items-center justify-between mb-8">
+                    <div>
+                        <h2 className="text-2xl font-black">기관 선택</h2>
+                        <p className="text-black/30 text-xs font-bold mt-1">자녀가 소속된 기관을 관리하세요.</p>
+                    </div>
+                    <button onClick={() => setShowInstList(false)} className="p-3 bg-slate-50 rounded-2xl text-black/20 hover:text-black transition-all">
+                        <XCircle size={24} />
+                    </button>
+                 </div>
+
+                 <div className="space-y-3 overflow-y-auto flex-1 pr-2 custom-scrollbar">
+                    {allInstitutions.map(inst => (
+                       <div 
+                         key={inst.id} 
+                         onClick={() => { setCurrentInstId(inst.id); setShowInstList(false); }}
+                         className={`p-6 rounded-3xl border-2 transition-all cursor-pointer flex items-center justify-between group ${currentInstId === inst.id ? 'border-primary bg-primary/5 shadow-xl shadow-primary/5' : 'border-black/[0.03] hover:border-black/10'}`}
+                       >
+                          <div className="flex items-center gap-4">
+                             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${currentInstId === inst.id ? 'bg-white border-primary/20 text-primary' : 'bg-slate-50 border-black/5 text-black/20'}`}>
+                                <ShieldCheck size={24} />
+                             </div>
+                             <div>
+                                <h3 className="font-black text-black leading-tight">{inst.name}</h3>
+                                <p className="text-[10px] font-black text-black/30 uppercase mt-1 tracking-widest">{inst.id}</p>
+                             </div>
+                          </div>
+                          {currentInstId === inst.id ? (
+                             <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20">
+                                <Check size={16} />
+                             </div>
+                          ) : (
+                             <button 
+                               onClick={(e) => { e.stopPropagation(); handleRemoveInstitution(inst.id); }}
+                               className="p-2 opacity-0 group-hover:opacity-100 text-black/20 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                             >
+                                <Trash2 size={18} />
+                             </button>
+                          )}
+                       </div>
+                    ))}
+
+                    <button 
+                        onClick={() => { setShowInstList(false); setShowJoinInst(true); }}
+                        className="w-full p-6 bg-slate-50 border-2 border-dashed border-black/10 rounded-3xl flex items-center justify-center gap-3 text-black/40 font-black hover:bg-slate-100 hover:border-black/20 transition-all"
+                    >
+                        <Plus size={20} />
+                        새로운 기관 연결하기
+                    </button>
+                 </div>
+              </motion.div>
+           </div>
+        )}
+      </AnimatePresence>
 
       <main className="flex-1 p-8 pb-32 space-y-8 overflow-y-auto">
         {activeTab === "home" && (
@@ -379,9 +712,21 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
                         <span className="text-[10px] font-black bg-gray-100 text-black/40 px-1.5 py-0.5 rounded">{child.class}</span>
                       </div>
                       <h3 className="text-xl font-black text-black">{child.name}</h3>
-                      <p className={`text-[10px] font-bold mt-1 ${child.status === 'present' ? 'text-emerald-500' : 'text-slate-400'}`}>
-                        {child.status === 'present' ? "원내 보육 중" : child.status === 'pickup_requested' ? "하교 진행 중" : "미등교"}
-                      </p>
+                      <div className="flex flex-col gap-0.5 mt-1">
+                        {activePickupRequests.find(r => r.studentId === child.id && r.status === 'pending') ? (
+                          <p className="text-[10px] font-black text-amber-500 uppercase flex items-center gap-1 animate-pulse">
+                            <Clock size={10} /> 하교 승인 대기 중
+                          </p>
+                        ) : activePickupRequests.find(r => r.studentId === child.id && r.status === 'approved') ? (
+                          <p className="text-[10px] font-black text-blue-500 uppercase flex items-center gap-1">
+                            <UserCheck size={10} /> 하교 승인 완료 (준비 중)
+                          </p>
+                        ) : (
+                          <p className={`text-[10px] font-bold ${child.status === 'present' ? 'text-emerald-500' : 'text-slate-400'}`}>
+                            {child.status === 'present' ? "원내 보육 중" : child.status === 'pickup_requested' ? "하교 완료됨" : "미등교"}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -445,6 +790,83 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
             </div>
           </div>
         )}
+
+        {activeTab === "profile" && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="text-center">
+              <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-4 border-2 border-primary/5">
+                <Heart size={32} className="text-primary" />
+              </div>
+              <h2 className="text-2xl font-black text-black">가족 정보 관리</h2>
+              <p className="text-sm font-bold text-black/30 mt-1">아이의 안전을 위해 정보를 정확히 입력해 주세요.</p>
+            </div>
+
+            <form onSubmit={handleSaveFamilyInfo} className="space-y-10">
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 border-b border-black/5 pb-2">
+                  <div className="w-8 h-8 bg-blue-500/10 rounded-xl flex items-center justify-center">
+                    <User size={16} className="text-blue-500" />
+                  </div>
+                  <h3 className="font-black text-lg">아버지 정보</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">성명</label>
+                    <input value={familyInfo.fatherName} onChange={e => setFamilyInfo({...familyInfo, fatherName: e.target.value})} placeholder="이름" className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-blue-500/20 focus:bg-white transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">생년월일</label>
+                    <input type="date" value={familyInfo.fatherBirth} onChange={e => setFamilyInfo({...familyInfo, fatherBirth: e.target.value})} className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-blue-500/20 focus:bg-white transition-all" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">전화번호</label>
+                  <input value={familyInfo.fatherPhone} onChange={e => setFamilyInfo({...familyInfo, fatherPhone: e.target.value})} placeholder="010-0000-0000" className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-blue-500/20 focus:bg-white transition-all" />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 border-b border-black/5 pb-2">
+                  <div className="w-8 h-8 bg-rose-500/10 rounded-xl flex items-center justify-center">
+                    <User size={16} className="text-rose-500" />
+                  </div>
+                  <h3 className="font-black text-lg">어머니 정보</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">성명</label>
+                    <input value={familyInfo.motherName} onChange={e => setFamilyInfo({...familyInfo, motherName: e.target.value})} placeholder="이름" className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-rose-500/20 focus:bg-white transition-all" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">생년월일</label>
+                    <input type="date" value={familyInfo.motherBirth} onChange={e => setFamilyInfo({...familyInfo, motherBirth: e.target.value})} className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-rose-500/20 focus:bg-white transition-all" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">전화번호</label>
+                  <input value={familyInfo.motherPhone} onChange={e => setFamilyInfo({...familyInfo, motherPhone: e.target.value})} placeholder="010-0000-0000" className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-rose-500/20 focus:bg-white transition-all" />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 border-b border-black/5 pb-2">
+                   <div className="w-8 h-8 bg-emerald-500/10 rounded-xl flex items-center justify-center">
+                      <Home size={16} className="text-emerald-500" />
+                   </div>
+                   <h3 className="font-black text-lg">공통 주소</h3>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">도로명 주소</label>
+                  <input value={familyInfo.address} onChange={e => setFamilyInfo({...familyInfo, address: e.target.value})} placeholder="서울특별시 강남구..." className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-emerald-500/20 focus:bg-white transition-all" />
+                </div>
+              </div>
+
+              <button type="submit" disabled={loading} className="w-full py-5 bg-black text-white font-black rounded-3xl shadow-xl active:scale-95 transition-all text-lg">
+                가족 정보 저장하기
+              </button>
+            </form>
+          </div>
+        )}
       </main>
 
       <nav className="bg-white/80 backdrop-blur-xl border-t border-black/5 fixed bottom-0 w-full max-w-md pb-safe z-50">
@@ -460,6 +882,10 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
             <button onClick={() => setActiveTab("messages")} className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === "messages" ? "text-primary" : "text-black/20"}`}>
                <MessageSquare size={24} />
                <span className="text-[10px] font-black uppercase tracking-widest">Inbox</span>
+            </button>
+            <button onClick={() => setActiveTab("profile")} className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === "profile" ? "text-primary" : "text-black/20"}`}>
+               <Users size={24} />
+               <span className="text-[10px] font-black uppercase tracking-widest">Family</span>
             </button>
          </div>
       </nav>
@@ -478,15 +904,132 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
                   </label>
                 </div>
                 <div className="grid grid-cols-1 gap-4">
-                  <input required placeholder="자녀 이름" value={newChild.name} onChange={e => setNewChild({...newChild, name: e.target.value})} className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold" />
-                  <input placeholder="학년 (PK, K, E1 등)" value={newChild.grade} onChange={e => setNewChild({...newChild, grade: e.target.value})} className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold" />
-                  <input placeholder="반 이름" value={newChild.class} onChange={e => setNewChild({...newChild, class: e.target.value})} className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold" />
-                  <textarea placeholder="특이사항 (알레르기 등)" value={newChild.notes} onChange={e => setNewChild({...newChild, notes: e.target.value})} className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold resize-none" rows={3} />
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">이름</label>
+                    <input required placeholder="자녀 이름" value={newChild.name} onChange={e => setNewChild({...newChild, name: e.target.value})} className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-black/5 focus:bg-white transition-all" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">학년</label>
+                      <input 
+                        list="grade-options"
+                        placeholder="학년 선택 또는 입력" 
+                        value={newChild.grade} 
+                        onChange={e => setNewChild({...newChild, grade: e.target.value})} 
+                        className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-black/5 focus:bg-white transition-all" 
+                      />
+                      <datalist id="grade-options">
+                        {standardGrades.map(g => <option key={g} value={g} />)}
+                      </datalist>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">반 이름</label>
+                      <input 
+                        list="class-options"
+                        placeholder="반 선택 또는 입력" 
+                        value={newChild.class} 
+                        onChange={e => setNewChild({...newChild, class: e.target.value})} 
+                        className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-black/5 focus:bg-white transition-all" 
+                      />
+                      <datalist id="class-options">
+                        {existingClasses.map(c => <option key={c} value={c} />)}
+                      </datalist>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">특이사항</label>
+                    <textarea placeholder="알레르기, 주의사항 등" value={newChild.notes} onChange={e => setNewChild({...newChild, notes: e.target.value})} className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-black/5 focus:bg-white transition-all resize-none" rows={2} />
+                  </div>
                 </div>
                 <div className="flex gap-4 pt-4">
                   <button type="button" onClick={() => setShowAddChild(false)} className="flex-1 py-5 bg-gray-100 text-black font-black rounded-[24px]">취소</button>
                   <button type="submit" className="flex-[2] py-5 bg-black text-white font-black rounded-[24px] shadow-xl">완료</button>
                 </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {showWelcome && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-md p-6">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white w-full max-w-sm rounded-[40px] p-8 shadow-2xl relative">
+              <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center shadow-xl shadow-emerald-500/20 text-white">
+                 <Check size={40} />
+              </div>
+              <div className="text-center mt-8 mb-6">
+                <h3 className="text-2xl font-black mb-2">🎉 등록 완료!</h3>
+                <p className="text-black/50 font-bold text-sm">Children Gate(CG)에 오신 것을 환영합니다.</p>
+              </div>
+              
+              <div className="space-y-4 mb-8">
+                 <div className="p-4 bg-gray-50 rounded-2xl">
+                    <h4 className="font-black text-xs text-primary mb-1 tracking-widest uppercase">등교 시</h4>
+                    <p className="text-xs font-bold text-black/60 leading-relaxed">아이 가방에 부착된 바코드를 학교 입구 스캐너에 보여주세요.</p>
+                 </div>
+                 <div className="p-4 bg-gray-50 rounded-2xl">
+                    <h4 className="font-black text-xs text-orange-500 mb-1 tracking-widest uppercase">하교 시</h4>
+                    <p className="text-xs font-bold text-black/60 leading-relaxed">도착 직전, 하교 요청 버튼을 눌러주세요.</p>
+                 </div>
+                 <div className="p-4 bg-gray-50 rounded-2xl">
+                    <h4 className="font-black text-xs text-emerald-500 mb-1 tracking-widest uppercase">픽업</h4>
+                    <p className="text-xs font-bold text-black/60 leading-relaxed">선생님이 확인 후 아이를 안전하게 인도해 드립니다.</p>
+                 </div>
+              </div>
+
+              <button 
+                onClick={() => setShowWelcome(false)}
+                className="w-full py-5 bg-black text-white font-black rounded-3xl shadow-xl active:scale-95 transition-all"
+              >
+                시작하기
+              </button>
+            </motion.div>
+          </div>
+        )}
+
+        {showJoinInst && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-6">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-sm rounded-[40px] p-10 shadow-2xl relative">
+              <button 
+                onClick={() => setShowJoinInst(false)}
+                className="absolute top-6 right-6 p-2 text-black/20 hover:text-black transition-colors"
+              >
+                <XCircle size={24} />
+              </button>
+              
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                   <ShieldCheck size={32} className="text-primary" />
+                </div>
+                <h3 className="text-2xl font-black mb-2">기관 연결</h3>
+                <p className="text-black/50 font-bold text-sm leading-relaxed">기관으로부터 안내받은<br/>6자리 코드를 입력해 주세요.</p>
+              </div>
+
+              <form onSubmit={handleJoinInstitution} className="space-y-4">
+                <input 
+                  type="text"
+                  placeholder="예: CG-7788"
+                  value={joinCode}
+                  onChange={(e) => { setJoinCode(e.target.value.toUpperCase()); setJoinError(""); }}
+                  className="w-full bg-slate-50 px-6 py-5 rounded-2xl outline-none font-black text-center text-2xl tracking-widest text-primary border-2 border-transparent focus:border-primary/20 focus:bg-white transition-all placeholder:text-black/10"
+                  required
+                />
+                
+                {joinError && (
+                  <p className="text-xs font-bold text-red-500 text-center flex items-center justify-center gap-1">
+                    <AlertCircle size={14} /> {joinError}
+                  </p>
+                )}
+
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-5 bg-black text-white font-black rounded-3xl shadow-xl active:scale-95 transition-all mt-4"
+                >
+                  {loading ? "확인 중..." : "기관 연결하기"}
+                </button>
               </form>
             </motion.div>
           </div>

@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "@/context/LanguageContext";
-import { Globe } from "lucide-react";
+import { Globe, Menu, X } from "lucide-react";
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { language, setLanguage, t } = useLanguage();
 
   useEffect(() => {
@@ -52,12 +53,40 @@ export default function Navbar() {
           <Link href="/login" className="text-sm font-semibold text-black hover:text-primary transition-colors hidden md:block">{t.common.login}</Link>
           <Link 
             href="/signup" 
-            className="bg-black text-white px-6 py-2.5 rounded-full text-sm font-bold hover:bg-black/80 transition-all shadow-lg shadow-black/10"
+            className="bg-black text-white px-6 py-2.5 rounded-full text-sm font-bold hover:bg-black/80 transition-all shadow-lg shadow-black/10 hidden sm:block"
           >
             {t.common.signup}
           </Link>
+
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="p-2 md:hidden text-black/60 hover:text-black transition-colors"
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile Menu Overlay */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden bg-white border-b border-black/5 overflow-hidden"
+          >
+            <div className="px-6 py-8 flex flex-col gap-6 text-lg font-bold">
+              <Link href="#features" onClick={() => setIsMobileMenuOpen(false)} className="text-black/60 hover:text-primary transition-colors">{t.nav.features}</Link>
+              <Link href="#how-it-works" onClick={() => setIsMobileMenuOpen(false)} className="text-black/60 hover:text-primary transition-colors">{t.nav.howItWorks}</Link>
+              <Link href="#pricing" onClick={() => setIsMobileMenuOpen(false)} className="text-black/60 hover:text-primary transition-colors">{t.nav.pricing}</Link>
+              <hr className="border-black/5" />
+              <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="text-black/60 hover:text-primary transition-colors">{t.common.login}</Link>
+              <Link href="/signup" onClick={() => setIsMobileMenuOpen(false)} className="text-primary">{t.common.signup}</Link>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.nav>
   );
 }

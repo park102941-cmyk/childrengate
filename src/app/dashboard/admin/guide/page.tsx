@@ -61,7 +61,7 @@ export default function GuidePage() {
   ];
 
   return (
-    <main className="flex-1 lg:ml-64 p-6 md:p-10 lg:p-14 bg-gray-50 min-h-screen">
+    <main className="p-6 md:p-10 lg:p-14 bg-gray-50 min-h-screen">
       <header className="mb-12">
         <h1 className="text-4xl font-black text-black mb-3 flex items-center gap-3">
            Children Gate 사용 가이드

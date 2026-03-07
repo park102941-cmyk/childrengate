@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Database, RefreshCcw, ExternalLink, Play, FileSpreadsheet } from "lucide-react";
+import { Database, RefreshCcw, ExternalLink, Play, FileSpreadsheet, Plus } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 
 export default function SheetsIntegrationPage() {
@@ -41,10 +41,9 @@ export default function SheetsIntegrationPage() {
     setIsCreating(true);
     setTimeout(() => {
       setIsCreating(false);
-      const newId = "1" + Math.random().toString(36).substring(2, 22);
-      setSheetId(newId);
-      alert("새로운 구글 시트 양식(Template)이 생성되었습니다!\n\nID: " + newId + "\n\n이제 가이드에 따라 Apps Script 설정을 완료해 주세요.");
-    }, 2500);
+      window.open("https://docs.google.com/spreadsheets/create", "_blank");
+      alert("새로운 구글 시트가 생성 창이 열렸습니다!\n\n1. 생성된 시트의 브라우저 주소창에서 ID를 복사해 주세요.\n(예: docs.google.com/spreadsheets/d/[이부분이_ID]/edit)\n\n2. 복사한 ID를 아래 입력창에 붙여넣어 주시면 연동이 완료됩니다.");
+    }, 1500);
   };
 
   const handlePullData = () => {
@@ -55,15 +54,56 @@ export default function SheetsIntegrationPage() {
     }, 2000);
   };
 
-  const gasTemplate = `function onEdit(e) {
-  // Kids Gate Real-time Sync Template
+  const gasTemplate = `/**
+ * Children Gate Real-time Sync Script
+ * 1. 구글 시트 > 확장 프로그램 > Apps Script에 이 코드를 복사하세요.
+ * 2. '배포' 버튼을 눌러 웹 앱으로 배포하면 실시간 연동이 활성화됩니다.
+ */
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('🚀 CG 관리 도구')
+      .addItem('선택 항목 삭제', 'deleteSelectedRows')
+      .addItem('데이터 초기화 (전체 삭제)', 'clearAllData')
+      .addToUi();
+}
+
+function deleteSelectedRows() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var range = sheet.getActiveRange();
+  var startRow = range.getRow();
+  var numRows = range.getNumRows();
+  if (Browser.msgBox("정말 삭제하시겠습니까?", Browser.Buttons.YES_NO) == "yes") {
+    sheet.deleteRows(startRow, numRows);
+  }
+}
+
+function clearAllData() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  if (Browser.msgBox("경고: 모든 학생 명단 데이터가 삭제됩니다.\\n정말 진행하시겠습니까?", Browser.Buttons.YES_NO) == "yes") {
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      sheet.deleteRows(2, lastRow - 1);
+    }
+  }
+}
+
+function onEdit(e) {
   var sheet = e.source.getActiveSheet();
   var range = e.range;
-  // This code would handle data sync between Sheet and Firebase
+  var value = range.getValue();
+  
+  if (range.getColumn() == 5 && value == "COMPLETED") {
+    Browser.msgBox("학생 인계 처리가 감지되었습니다.");
+  }
+}
+
+function syncFromApp(data) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  sheet.appendRow([new Date(), data.type, data.student, data.status]);
 }`;
 
   return (
-    <main className="flex-1 lg:ml-64 p-6 md:p-10 lg:p-14 bg-gray-50/30 min-h-screen font-sans">
+    <main className="p-6 md:p-10 lg:p-14 bg-gray-50/30 min-h-screen font-sans">
       <header className="mb-10">
         <h1 className="text-4xl font-black tracking-tight text-black mb-1">구글 시트 연동</h1>
         <p className="text-black/50 font-semibold">기관의 모든 데이터를 구글 시트와 실시간으로 동기화합니다.</p>
@@ -88,30 +128,38 @@ export default function SheetsIntegrationPage() {
                <div className="space-y-6">
                   <div>
                      <label className="block text-xs font-black text-black/40 uppercase tracking-widest mb-2">Google Spreadsheet ID</label>
-                     <input 
-                        type="text" 
-                        value={sheetId}
-                        onChange={(e) => setSheetId(e.target.value)}
-                        className="w-full bg-gray-50 border border-black/5 rounded-2xl p-4 font-mono text-sm"
-                     />
+                     <div className="flex gap-2">
+                        <input 
+                           type="text" 
+                           value={sheetId}
+                           onChange={(e) => setSheetId(e.target.value)}
+                           placeholder="시트 ID를 입력하세요"
+                           className="flex-1 bg-gray-50 border border-black/5 rounded-2xl p-4 font-mono text-sm outline-none focus:border-primary transition-colors"
+                        />
+                     </div>
                   </div>
 
                   <button 
                      onClick={handleCreateSheet}
                      disabled={isCreating}
-                     className="w-full flex items-center justify-center gap-3 p-5 rounded-[24px] bg-emerald-500 text-white hover:bg-emerald-600 font-black text-sm transition-all shadow-xl shadow-emerald-500/20"
+                     className="w-full flex items-center justify-center gap-3 p-5 rounded-[24px] bg-emerald-500 text-white hover:bg-emerald-600 font-black text-sm transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
                   >
-                     {isCreating ? <RefreshCcw size={16} className="animate-spin" /> : <FileSpreadsheet size={18} />}
-                     전용 구글 시트 양식 생성하기
+                     {isCreating ? <RefreshCcw size={16} className="animate-spin" /> : <Plus size={18} />}
+                     전용 구글 시트 새로 만들기
                   </button>
 
-                  <a 
-                     href={`https://docs.google.com/spreadsheets/d/${sheetId}`} 
-                     target="_blank"
-                     className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-white border border-black/5 font-black text-sm text-black"
+                  <button 
+                     onClick={() => {
+                        if (sheetId && sheetId.length > 5) {
+                          window.open(`https://docs.google.com/spreadsheets/d/${sheetId}`, "_blank");
+                        } else {
+                          alert("올바른 Google Sheet ID를 입력해 주세요.");
+                        }
+                     }}
+                     className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-white border border-black/5 font-black text-sm text-black hover:bg-gray-50 transition-all"
                   >
                      시트 열기 <ExternalLink size={16} />
-                  </a>
+                  </button>
                </div>
             </section>
 
