@@ -41,45 +41,49 @@ export default function DispatchDashboard() {
   useEffect(() => {
     if (!db || !institutionId) return;
 
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    const fetchData = async () => {
+      if (!db || !institutionId) return;
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
 
-    // 1. Listen to real-time pickup requests (TODAY ONLY for better sync)
-    const qRequests = query(
-      collection(db, "pickup_requests"),
-      where("institutionId", "==", institutionId),
-      where("requestTime", ">=", Timestamp.fromDate(startOfToday)),
-      orderBy("requestTime", "desc")
-    );
+      try {
+        // 1. Fetch real-time pickup requests (TODAY ONLY)
+        const qRequests = query(
+          collection(db, "pickup_requests"),
+          where("institutionId", "==", institutionId),
+          where("requestTime", ">=", Timestamp.fromDate(startOfToday)),
+          orderBy("requestTime", "desc")
+        );
+        
+        const snapshotRequests = await getDocs(qRequests);
+        const reqData = snapshotRequests.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setPickupRequests(reqData);
 
-    const unsubscribeRequests = onSnapshot(qRequests, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setPickupRequests(data);
-    }, (err) => {
-      console.error("Pickup sync error:", err);
-    });
+        // 2. Fetch ALL students
+        const qStudents = query(
+          collection(db, "students"),
+          where("institutionId", "==", institutionId)
+        );
+        
+        const snapshotStudents = await getDocs(qStudents);
+        const stuData = snapshotStudents.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setAllStudentsData(stuData);
 
-    // 2. Listen to ALL students
-    const qStudents = query(
-      collection(db, "students"),
-      where("institutionId", "==", institutionId)
-    );
-
-    const unsubscribeStudents = onSnapshot(qStudents, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setAllStudentsData(data);
-    });
-
-    return () => {
-      unsubscribeRequests();
-      unsubscribeStudents();
+      } catch (err) {
+        console.error("Data sync error:", err);
+      }
     };
+
+    fetchData(); // Initial load
+    const interval = setInterval(fetchData, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(interval);
   }, [institutionId]);
 
   // Combine both sources and unify state
