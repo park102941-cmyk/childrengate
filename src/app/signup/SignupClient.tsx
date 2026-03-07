@@ -439,22 +439,23 @@ function SignupContent() {
                              <option value="PK">미취학 (PK)</option>
                              <option value="K">유치원 (Kindergarten)</option>
                           </optgroup>
-                          <optgroup label="초등학생 (Elementary)">
+                          <optgroup label="초등학교 (Elementary)">
                              <option value="E1">초등 1학년 (E1)</option>
                              <option value="E2">초등 2학년 (E2)</option>
                              <option value="E3">초등 3학년 (E3)</option>
                              <option value="E4">초등 4학년 (E4)</option>
                              <option value="E5">초등 5학년 (E5)</option>
                           </optgroup>
-                          <optgroup label="중학생 (Middle)">
+                          <optgroup label="중학교 (Middle)">
                              <option value="M6">중등 1학년 (M6)</option>
                              <option value="M7">중등 2학년 (M7)</option>
                              <option value="M8">중등 3학년 (M8)</option>
                           </optgroup>
-                          <optgroup label="고등학생 (High)">
+                          <optgroup label="고등학교 (High)">
                              <option value="H9">고등 1학년 (H9)</option>
                              <option value="H10">고등 2학년 (H10)</option>
                              <option value="H11">고등 3학년 (H11)</option>
+                             <option value="H12">고등 4학년 (H12)</option>
                           </optgroup>
                           <optgroup label="기타">
                              <option value="ETC">기타</option>
