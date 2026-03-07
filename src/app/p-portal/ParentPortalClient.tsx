@@ -111,8 +111,28 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
   ];
 
   useEffect(() => {
-    if (instId) setCurrentInstId(instId);
-  }, [instId]);
+    if (instId) {
+      setCurrentInstId(instId);
+    } else if (!currentInstId && allInstitutions.length > 0) {
+      // If no ID in URL but we have registered institutions, pick the first one
+      setCurrentInstId(allInstitutions[0].id);
+    }
+  }, [instId, allInstitutions.length, currentInstId]);
+
+  // Sync currentInstId to user profile as the 'preferred' default
+  useEffect(() => {
+    if (user?.uid && currentInstId && db) {
+      const syncPref = async () => {
+        try {
+          const userRef = doc(db!, "users", user.uid);
+          await updateDoc(userRef, { institutionId: currentInstId });
+        } catch (err) {
+          console.error("Failed to sync institution preference:", err);
+        }
+      };
+      syncPref();
+    }
+  }, [currentInstId, user?.uid, db]);
 
   useEffect(() => {
     if (authLoading || redirectRef.current) return;
@@ -549,31 +569,34 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
         const q = query(collection(db!, "students"), where("parentEmail", "==", user?.email), where("institutionId", "==", id));
         const snap = await getDocs(q);
         
-        // Use batch for safer deletion if needed, but Promise.all is fine for small counts
+        // 1. Delete all student records for this institution
         await Promise.all(snap.docs.map(d => deleteDoc(doc(db!, "students", d.id))));
         
-        // But we should move currentInstId if it was the one removed.
+        // 2. Update remaining institutions list logic
         const remaining = allInstitutions.filter(inst => inst.id !== id);
         
-        // Also clear institutionId in the user profile if it's the same
+        // 3. Clear from user profile if it was the pinned/default inst
         if (user?.uid) {
            const userRef = doc(db!, "users", user.uid);
            const userSnap = await getDoc(userRef);
            if (userSnap.exists() && userSnap.data().institutionId === id) {
-             await updateDoc(userRef, { institutionId: null });
+             // Set it to the next available one or null
+             await updateDoc(userRef, { institutionId: remaining[0]?.id || null });
            }
         }
 
+        // 4. Switch current view if we just deleted the active one
         if (currentInstId === id) {
-           setCurrentInstId(remaining[0]?.id || "");
-           // Strip the ID from URL to avoid it being re-added by currentInstId state
-           router.replace("/p-portal");
+           const nextInstId = remaining[0]?.id || "";
+           setCurrentInstId(nextInstId);
+           router.replace(nextInstId ? `/p-portal?id=${nextInstId}` : "/p-portal");
         }
         
         setShowInstList(false);
         alert("기관 연결이 해제되었습니다.");
     } catch (err) {
         console.error("Remove inst error:", err);
+        alert("삭제 중 오류가 발생했습니다.");
     } finally {
         setLoading(false);
     }
