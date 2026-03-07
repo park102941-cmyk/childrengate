@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   MessageSquare,
   Send,
@@ -62,6 +62,11 @@ export default function MessagesPage() {
     attachmentName: "",
     attachmentUrl: "",
   });
+  
+  const [availableClasses, setAvailableClasses] = useState<string[]>([]);
+  const [availableStudents, setAvailableStudents] = useState<any[]>([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Listen to messages in real-time
   useEffect(() => {
@@ -85,6 +90,38 @@ export default function MessagesPage() {
 
     return () => unsubscribe();
   }, [institutionId]);
+
+  // Fetch student info for targeting
+  useEffect(() => {
+    if (!db || !institutionId) return;
+
+    const q = query(collection(db, "students"), where("institutionId", "==", institutionId));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const studs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().name,
+        parentName: doc.data().parent,
+        class: doc.data().class
+      }));
+      setAvailableStudents(studs);
+      
+      const classes = Array.from(new Set(studs.map(s => s.class).filter(Boolean))) as string[];
+      setAvailableClasses(classes.sort());
+    });
+
+    return () => unsubscribe();
+  }, [institutionId]);
+
+  // Handle click outside dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleSendMessage = async () => {
     if (!newMessage.title || !newMessage.content) {
@@ -416,26 +453,74 @@ export default function MessagesPage() {
                       </div>
 
                       {newMessage.target === "class" && (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-4">
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-4 relative">
+                          <div className="flex flex-wrap gap-2">
+                            {availableClasses.map(cls => (
+                              <button
+                                key={cls}
+                                onClick={() => setNewMessage({ ...newMessage, targetClass: cls })}
+                                className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                                  newMessage.targetClass === cls 
+                                    ? "bg-primary text-white shadow-lg shadow-primary/20" 
+                                    : "bg-gray-50 text-black/40 hover:bg-gray-100"
+                                }`}
+                              >
+                                {cls}
+                              </button>
+                            ))}
+                          </div>
                           <input
                             type="text"
-                            placeholder="반 이름 (예: 기쁨반, 민들레반)"
+                            placeholder="또는 직접 입력 (예: 기쁨반)"
                             value={newMessage.targetClass}
                             onChange={(e) => setNewMessage({ ...newMessage, targetClass: e.target.value })}
-                            className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-bold text-black focus:border-primary focus:bg-white transition-all"
+                            className="w-full mt-3 px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-bold text-black focus:border-primary focus:bg-white transition-all"
                           />
                         </motion.div>
                       )}
 
                       {newMessage.target === "individual" && (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-4">
-                          <input
-                            type="text"
-                            placeholder="학부모 이름 검색"
-                            value={newMessage.targetParentName}
-                            onChange={(e) => setNewMessage({ ...newMessage, targetParentName: e.target.value })}
-                            className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-bold text-black focus:border-primary focus:bg-white transition-all"
-                          />
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-4 space-y-3">
+                          <div className="relative" ref={dropdownRef}>
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-black/20" size={16} />
+                            <input
+                              type="text"
+                              placeholder="학생 또는 학부모 이름 검색..."
+                              value={newMessage.targetParentName}
+                              onFocus={() => setIsDropdownOpen(true)}
+                              onChange={(e) => {
+                                setNewMessage({ ...newMessage, targetParentName: e.target.value });
+                                setIsDropdownOpen(true);
+                              }}
+                              className="w-full pl-12 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-bold text-black focus:border-primary focus:bg-white transition-all shadow-inner"
+                            />
+                            
+                            {isDropdownOpen && (
+                              <div className="absolute z-10 w-full mt-2 bg-white rounded-2xl border border-black/5 shadow-2xl max-h-60 overflow-y-auto">
+                                {availableStudents
+                                  .filter(s => 
+                                    s.name.includes(newMessage.targetParentName) || 
+                                    s.parentName.includes(newMessage.targetParentName)
+                                  )
+                                  .map(s => (
+                                    <button
+                                      key={s.id}
+                                      onClick={() => {
+                                        setNewMessage({ ...newMessage, targetParentName: `${s.name}(${s.parentName})` });
+                                        setIsDropdownOpen(false);
+                                      }}
+                                      className="w-full px-6 py-4 text-left hover:bg-gray-50 transition-colors flex items-center justify-between group"
+                                    >
+                                      <div>
+                                        <p className="font-black text-black group-hover:text-primary transition-colors">{s.name}</p>
+                                        <p className="text-[10px] font-bold text-black/30">학부모: {s.parentName} · {s.class || "반 미지정"}</p>
+                                      </div>
+                                      <Check size={16} className={`${newMessage.targetParentName.includes(s.name) ? "text-primary opacity-100" : "opacity-0"}`} />
+                                    </button>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
                         </motion.div>
                       )}
                     </div>
