@@ -68,7 +68,14 @@ export default function LoginPage() {
              window.location.href = "/dashboard/admin";
          } else {
              console.log("Redirecting to Parent Portal");
-             const targetPortal = userData.institutionId ? `/p-portal?id=${userData.institutionId}` : "/p-portal";
+             // 1. Check URL for instId or id first (from QR code or manual link)
+             const urlInstId = searchParams?.get("instId") || searchParams?.get("id");
+             
+             // 2. Fallback to userData.institutionId if none in URL
+             const targetPortal = urlInstId 
+                ? `/p-portal?id=${urlInstId}` 
+                : (userData.institutionId ? `/p-portal?id=${userData.institutionId}` : "/p-portal");
+                
              window.location.href = targetPortal;
          }
       } else {
@@ -81,7 +88,13 @@ export default function LoginPage() {
             role: roleToAssign, 
             createdAt: serverTimestamp() 
           });
-          window.location.href = roleToAssign === "admin" ? "/dashboard/admin" : "/p-portal";
+          
+          const urlInstId = searchParams?.get("instId") || searchParams?.get("id");
+          const target = roleToAssign === "admin" 
+            ? "/dashboard/admin" 
+            : (urlInstId ? `/p-portal?id=${urlInstId}` : "/p-portal");
+            
+          window.location.href = target;
       }
     } catch (err: any) {
       console.error("Redirection Failed:", err);

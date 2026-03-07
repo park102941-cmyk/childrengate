@@ -153,13 +153,15 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
     alert("초대 링크가 복사되었습니다!");
   };
 
-  // Fetch All Institutions parent is involved with
+  // Fetch All Institutions parent is involved with - Real-time
   useEffect(() => {
     if (!user?.email || !db) return;
-    const fetchAllInsts = async () => {
+    
+    // Listen to ALL student records for this parent to build the institution list
+    const q = query(collection(db, "students"), where("parentEmail", "==", user.email));
+    
+    const unsubscribe = onSnapshot(q, async (snap) => {
       try {
-        const q = query(collection(db!, "students"), where("parentEmail", "==", user.email));
-        const snap = await getDocs(q);
         const uniqueIds = Array.from(new Set(snap.docs.map(d => d.data().institutionId))).filter(Boolean) as string[];
         
         const details = await Promise.all(uniqueIds.map(async (id) => {
@@ -168,20 +170,24 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
           return { id, name: isnap.empty ? id : isnap.docs[0].data().name };
         }));
         
-        // Ensure currentInstId is in the list if it's from URL
+        // Ensure currentInstId is in the list if it's from URL or state
         if (currentInstId && !details.find(d => d.id === currentInstId)) {
            const iq = query(collection(db!, "institutions"), where("institutionId", "==", currentInstId));
            const isnap = await getDocs(iq);
-           details.push({ id: currentInstId, name: isnap.empty ? currentInstId : isnap.docs[0].data().name });
+           // Only add if it actually exists in institutions collection
+           if (!isnap.empty) {
+             details.push({ id: currentInstId, name: isnap.docs[0].data().name });
+           }
         }
 
         setAllInstitutions(details);
       } catch (err) {
-        console.error("Error fetching multi-inst:", err);
+        console.error("Error fetching multi-inst snapshot:", err);
       }
-    };
-    fetchAllInsts();
-  }, [user?.email, currentInstId, children.length]);
+    });
+    
+    return () => unsubscribe();
+  }, [user?.email, currentInstId]);
 
   // Fetch current Institution Info
   useEffect(() => {
@@ -542,13 +548,28 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
         setLoading(true);
         const q = query(collection(db!, "students"), where("parentEmail", "==", user?.email), where("institutionId", "==", id));
         const snap = await getDocs(q);
+        
+        // Use batch for safer deletion if needed, but Promise.all is fine for small counts
         await Promise.all(snap.docs.map(d => deleteDoc(doc(db!, "students", d.id))));
         
+        // But we should move currentInstId if it was the one removed.
         const remaining = allInstitutions.filter(inst => inst.id !== id);
-        setAllInstitutions(remaining);
+        
+        // Also clear institutionId in the user profile if it's the same
+        if (user?.uid) {
+           const userRef = doc(db!, "users", user.uid);
+           const userSnap = await getDoc(userRef);
+           if (userSnap.exists() && userSnap.data().institutionId === id) {
+             await updateDoc(userRef, { institutionId: null });
+           }
+        }
+
         if (currentInstId === id) {
            setCurrentInstId(remaining[0]?.id || "");
+           // Strip the ID from URL to avoid it being re-added by currentInstId state
+           router.replace("/p-portal");
         }
+        
         setShowInstList(false);
         alert("기관 연결이 해제되었습니다.");
     } catch (err) {
