@@ -27,6 +27,7 @@ export default function TeacherDashboard() {
   const { t } = useLanguage();
   const [requests, setRequests] = useState<PickupRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!db) return;
@@ -55,6 +56,7 @@ export default function TeacherDashboard() {
   }, []);
 
   const handleApprove = async (request: PickupRequest) => {
+    setProcessingId(request.id);
     try {
       if (!db) {
         throw new Error("Firebase database is not initialized");
@@ -82,6 +84,8 @@ export default function TeacherDashboard() {
       console.log("Approved and Synced pickup:", request.id);
     } catch (error) {
       console.error("Error approving pickup:", error);
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -258,9 +262,14 @@ export default function TeacherDashboard() {
                     </button>
                     <button 
                       onClick={() => handleApprove(request)}
-                      className="px-6 py-4 rounded-2xl bg-primary text-white font-bold hover:bg-primary-hover transition-colors shadow-lg shadow-primary/20"
+                      disabled={processingId === request.id}
+                      className="px-6 py-4 rounded-2xl bg-primary text-white font-bold hover:bg-primary-hover transition-colors shadow-lg shadow-primary/20 flex items-center justify-center min-w-[100px] disabled:opacity-50"
                     >
-                      {t.dashboard.teacher.approve}
+                      {processingId === request.id ? (
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      ) : (
+                        t.dashboard.teacher.approve
+                      )}
                     </button>
                   </div>
                 </motion.div>

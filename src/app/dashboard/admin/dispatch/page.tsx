@@ -32,6 +32,7 @@ export default function DispatchDashboard() {
   const [students, setStudents] = useState<DispatchStudent[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState<"all" | "pickup_requested" | "present" | "released" | "absent">("all");
+  const [loadingId, setLoadingId] = useState<string | null>(null);
   const { institutionId } = useAuth();
 
   const [pickupRequests, setPickupRequests] = useState<any[]>([]);
@@ -140,13 +141,14 @@ export default function DispatchDashboard() {
 
   // Actions
   const handleApprove = async (student: DispatchStudent) => {
+    setLoadingId(student.id);
     // Optimistic Update
     setStudents(prev => prev.map(s => s.id === student.id ? { ...s, status: 'pickup_requested', isApproved: true, hasPendingRequest: false } : s));
 
     try {
       if (!db || !student.activeRequestId) {
         console.error("Missing DB or Active Request ID");
-        // Revert on error
+        setLoadingId(null);
         return;
       }
       
@@ -167,6 +169,8 @@ export default function DispatchDashboard() {
     } catch (e) {
       console.error("Error approving request:", e);
       alert("승인 처리 중 오류 발생");
+    } finally {
+      setLoadingId(null);
     }
   };
 
@@ -255,6 +259,7 @@ export default function DispatchDashboard() {
   };
 
   const handleRelease = async (student: DispatchStudent) => {
+    setLoadingId(student.id);
     // Optimistic Update
     setStudents(prev => prev.map(s => s.id === student.id ? { ...s, status: 'released' } : s));
 
@@ -296,7 +301,7 @@ export default function DispatchDashboard() {
         })
       });
 
-      alert(`${student.name} 은(는) 하교 처리가 완료되었습니다.`);
+      // Removed blocking alert for smoother experience
       
       fetch("/api/sync-report", {
         method: "POST",
@@ -311,6 +316,8 @@ export default function DispatchDashboard() {
     } catch (e) {
       console.error("Error releasing student:", e);
       alert(e instanceof Error ? e.message : "하교 완료 처리 중 오류 발생");
+    } finally {
+      setLoadingId(null);
     }
   };
 
@@ -501,9 +508,14 @@ export default function DispatchDashboard() {
                            {student.hasPendingRequest && (
                               <button 
                                 onClick={() => handleApprove(student)}
-                                className="flex-1 sm:flex-none px-6 py-3 bg-amber-500 text-white rounded-2xl font-black shadow-xl shadow-amber-500/20 hover:bg-amber-600 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                disabled={loadingId === student.id}
+                                className="flex-1 sm:flex-none px-6 py-3 bg-amber-500 text-white rounded-2xl font-black shadow-xl shadow-amber-500/20 hover:bg-amber-600 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                하교 승인하기 <CheckCircle2 size={18} />
+                                {loadingId === student.id ? (
+                                  <RefreshCcw size={18} className="animate-spin" />
+                                ) : (
+                                  <>하교 승인하기 <CheckCircle2 size={18} /></>
+                                )}
                               </button>
                            )}
 
@@ -519,9 +531,14 @@ export default function DispatchDashboard() {
                            {student.status === 'pickup_requested' && (
                               <button 
                                 onClick={() => handleRelease(student)}
-                                className="flex-1 sm:flex-none px-6 py-3 bg-black text-white rounded-2xl font-black shadow-xl shadow-black/20 hover:bg-gray-800 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                disabled={loadingId === student.id}
+                                className="flex-1 sm:flex-none px-6 py-3 bg-black text-white rounded-2xl font-black shadow-xl shadow-black/20 hover:bg-gray-800 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                하교 완료 처리 <CheckCircle2 size={18} />
+                                {loadingId === student.id ? (
+                                  <RefreshCcw size={18} className="animate-spin" />
+                                ) : (
+                                  <>하교 완료 처리 <CheckCircle2 size={18} /></>
+                                )}
                               </button>
                            )}
                            {student.status === 'released' && (
