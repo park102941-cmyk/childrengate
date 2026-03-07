@@ -509,6 +509,21 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
     }
   };
 
+  const handleDeleteChild = async (id: string) => {
+    if (!confirm("이 자녀 정보를 정말로 삭제하시겠습니까? 해당 자녀의 모든 데이터가 삭제됩니다.")) return;
+    try {
+      setLoading(true);
+      if (!db) return;
+      await deleteDoc(doc(db, "students", id));
+      alert("자녀 정보가 삭제되었습니다.");
+    } catch (err) {
+      console.error("Delete child error:", err);
+      alert("삭제 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleJoinInstitution = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!joinCode.trim() || !db) return;
@@ -739,13 +754,11 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-black text-black">자녀 목록</h2>
-              <button onClick={() => setShowAddChild(true)} className="p-2 bg-primary text-white rounded-full"><Plus size={20} /></button>
             </div>
             
             <div className="grid grid-cols-1 gap-4">
               {children.map(child => (
                 <div key={child.id} onClick={() => handleToggleSelect(child.id)} className={`p-6 rounded-[32px] border-2 transition-all relative cursor-pointer ${selectedChildren.includes(child.id) ? 'border-primary bg-primary/5' : 'border-black/5 bg-white'}`}>
-                  <button onClick={(e) => { e.stopPropagation(); openEditModal(child); }} className="absolute top-4 right-4 p-2 text-black/20 hover:text-black focus:outline-none"><Edit2 size={16} /></button>
                   <div className="flex items-center gap-4">
                     <div className="w-16 h-16 rounded-full bg-slate-100 overflow-hidden flex items-center justify-center border border-black/5">
                       {child.photo ? <img src={child.photo} alt={child.name} className="w-full h-full object-cover" /> : <User size={32} className="text-black/10" />}
@@ -909,6 +922,56 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
                 가족 정보 저장하기
               </button>
             </form>
+
+            <div className="space-y-6 pt-10 border-t border-black/5">
+                <div className="flex items-center justify-between px-2">
+                    <h3 className="font-black text-xl text-black">자녀 관리</h3>
+                    <button 
+                      type="button" 
+                      onClick={() => { setEditingChildId(null); setNewChild({ name: "", accessCode: "", birthDate: "", allergies: "", notes: "", grade: "", class: "", photo: "" }); setShowAddChild(true); }}
+                      className="px-5 py-2.5 bg-primary text-white text-xs font-black rounded-2xl shadow-lg shadow-primary/20 active:scale-95 transition-all flex items-center gap-2"
+                    >
+                        <Plus size={16} /> 자녀 추가
+                    </button>
+                </div>
+
+                <div className="space-y-4">
+                    {children.map(child => (
+                        <div key={child.id} className="p-5 bg-slate-50 rounded-[32px] border border-black/5 flex items-center justify-between group">
+                            <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 rounded-2xl bg-white overflow-hidden flex items-center justify-center border border-black/5 shadow-sm">
+                                    {child.photo ? <img src={child.photo} alt={child.name} className="w-full h-full object-cover" /> : <User size={24} className="text-black/10" />}
+                                </div>
+                                <div>
+                                    <h4 className="font-black text-black">{child.name}</h4>
+                                    <p className="text-[10px] font-bold text-black/30 mt-0.5">{child.grade || "미지정"} · {child.class || "기본반"}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <button 
+                                  onClick={() => openEditModal(child)}
+                                  className="p-3 bg-white text-black/20 hover:text-black rounded-xl border border-black/5 shadow-sm transition-all"
+                                  title="수정"
+                                >
+                                    <Edit2 size={16} />
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteChild(child.id)}
+                                  className="p-3 bg-white text-black/20 hover:text-red-500 rounded-xl border border-black/5 shadow-sm transition-all"
+                                  title="삭제"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    {children.length === 0 && (
+                        <div className="text-center py-12 bg-gray-50/50 rounded-[32px] border-2 border-dashed border-black/5">
+                            <p className="text-sm font-black uppercase tracking-widest text-black/20">등록된 자녀가 없습니다</p>
+                        </div>
+                    )}
+                </div>
+            </div>
           </div>
         )}
       </main>
