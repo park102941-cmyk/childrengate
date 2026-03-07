@@ -70,6 +70,8 @@ export default function AdminDashboard() {
   const [todayLateCount, setTodayLateCount] = useState(0);
   const [todayPresentCount, setTodayPresentCount] = useState(0);
   const [currentlyPresentCount, setCurrentlyPresentCount] = useState(0);
+  const [allRawLogs, setAllRawLogs] = useState<any[]>([]);
+  const [allRawPickups, setAllRawPickups] = useState<any[]>([]);
   const [arrivalTime, setArrivalTime] = useState("09:00");
   const [departureTime, setDepartureTime] = useState("18:00");
   const [plan, setPlan] = useState<"basic" | "premium" | "enterprise">("basic");
@@ -117,48 +119,23 @@ export default function AdminDashboard() {
     const unsubscribeLogs = onSnapshot(qLogs, (snapshot) => {
       let lateCnt = 0;
       let presentCnt = 0;
-
-      // Sort logs by timestamp desc manually to avoid index requirement
-      const sortedDocs = [...snapshot.docs].sort((a, b) => {
-        const tA = (a.data().timestamp?.toDate?.() || 0).valueOf();
-        const tB = (b.data().timestamp?.toDate?.() || 0).valueOf();
-        return tB - tA;
-      });
-
-      const logs = sortedDocs.map(doc => {
+      
+      const logs = snapshot.docs.map(doc => {
         const d = doc.data();
-        let formattedTime = "방금 전";
         let isLate = false;
-
-        try {
-          if (d.timestamp?.toDate) {
-            const date = d.timestamp.toDate();
-            formattedTime = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-            
-            if (d.status === 'in') {
-                if (formattedTime > arrivalTime) {
-                    isLate = true;
-                    lateCnt++;
-                } else {
-                    presentCnt++;
-                }
-            } else if (d.status === 'out') {
-                // We could track early leavers here if needed
-            }
+        if (d.timestamp?.toDate && d.status === 'in') {
+          const time = d.timestamp.toDate().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+          if (time > arrivalTime) {
+            isLate = true;
+            lateCnt++;
+          } else {
+            presentCnt++;
           }
-        } catch (e) {}
-
-        return {
-          id: doc.id,
-          user: d.studentName as string,
-          action: d.status === 'out' ? "하교 완료" : (isLate ? "지각 등교" : "정상 등교"),
-          timestamp: d.timestamp,
-          time: formattedTime,
-          icon: d.status === 'out' ? Car : UserCheck,
-          color: d.status === 'out' ? "text-amber-500" : (isLate ? "text-rose-500" : "text-emerald-500")
-        };
+        }
+        return { id: doc.id, type: 'log', isLate, ...d };
       });
-      setActivities(logs.slice(0, 5));
+
+      setAllRawLogs(logs);
       setTodayCheckins(snapshot.docs.length.toString());
       setTodayLateCount(lateCnt);
       setTodayPresentCount(presentCnt);
@@ -173,6 +150,8 @@ export default function AdminDashboard() {
     );
     const unsubscribePickups = onSnapshot(qPickups, (snapshot) => {
         setPendingPickups(snapshot.docs.length.toString());
+        const data = snapshot.docs.map(doc => ({ id: doc.id, type: 'pickup', ...doc.data() }));
+        setAllRawPickups(data);
     }, (err) => {
         console.error("Pickups listener error:", err);
     });
@@ -194,7 +173,56 @@ export default function AdminDashboard() {
         unsubscribePickups();
         unsubscribeEvents();
     };
-  }, [institutionId]);
+  }, [institutionId, arrivalTime]);
+
+  // Unified Activity Logic
+  useEffect(() => {
+    const combined = [...allRawLogs, ...allRawPickups].sort((a, b) => {
+      const tA = (a.timestamp?.toDate?.() || a.requestTime?.toDate?.() || 0).valueOf();
+      const tB = (b.timestamp?.toDate?.() || b.requestTime?.toDate?.() || 0).valueOf();
+      return tB - tA;
+    });
+
+    const feed = combined.map(item => {
+      let message = "";
+      let icon = UserCheck;
+      let color = "text-primary";
+      let time = "방금 전";
+
+      const timestamp = item.timestamp || item.requestTime;
+      if (timestamp?.toDate) {
+        time = timestamp.toDate().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+      }
+
+      const name = item.studentName || "알 수 없음";
+
+      if (item.type === 'pickup') {
+        message = `${name} 학생이 하교를 요청합니다`;
+        icon = Car;
+        color = "text-amber-500 font-bold";
+      } else {
+        if (item.status === 'out') {
+          message = `${name} 학생이 하교하였습니다`;
+          icon = Car;
+          color = "text-amber-600";
+        } else {
+          message = `${name} 학생이 ${item.isLate ? "지각 " : ""}등교하였습니다`;
+          icon = UserCheck;
+          color = item.isLate ? "text-rose-500" : "text-emerald-500";
+        }
+      }
+
+      return {
+        id: item.id,
+        message,
+        time,
+        icon,
+        color
+      };
+    });
+
+    setActivities(feed.slice(0, 8));
+  }, [allRawLogs, allRawPickups]);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState("");
@@ -440,23 +468,22 @@ export default function AdminDashboard() {
                  <div className="absolute left-[17px] top-2 bottom-6 w-px bg-black/5"></div>
                  <AnimatePresence mode="popLayout">
                     {activities.length > 0 ? activities.map((act, idx) => (
-                        <motion.div 
-                           key={act.id} 
-                           initial={{ opacity: 0, y: 5 }}
-                           animate={{ opacity: 1, y: 0 }}
-                           exit={{ opacity: 0, scale: 0.95 }}
-                           transition={{ delay: idx * 0.03 }}
-                           className="flex items-center gap-3 group"
-                        >
-                           <div className="w-8 h-8 rounded-full bg-white border border-black/5 shadow-sm flex items-center justify-center relative z-10 group-hover:border-primary transition-colors">
-                              <act.icon size={12} className={act.color || "text-primary"} />
-                           </div>
-                           <div className="flex-1 min-w-0">
-                              <p className="text-xs font-black text-black truncate leading-tight mb-0.5">{act.user}</p>
-                              <p className="text-[8px] text-black/40 font-black uppercase tracking-widest">{act.action}</p>
-                           </div>
-                           <span className="text-[8px] font-black text-black/20 font-mono italic">{act.time}</span>
-                        </motion.div>
+                         <motion.div 
+                            key={act.id} 
+                            initial={{ opacity: 0, y: 5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ delay: idx * 0.03 }}
+                            className="flex items-start gap-3 group"
+                         >
+                            <div className="w-8 h-8 rounded-full bg-white border border-black/5 shadow-sm flex items-center justify-center relative z-10 group-hover:border-primary transition-colors shrink-0 mt-0.5">
+                               <act.icon size={12} className={act.color.split(' ')[0]} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                               <p className={`text-[11px] font-black leading-snug truncate ${act.color}`}>{act.message}</p>
+                               <span className="text-[9px] font-black text-black/20 font-mono italic">{act.time}</span>
+                            </div>
+                         </motion.div>
                     )) : <p className="text-center text-black/20 text-[10px] font-black py-10 italic">No Activity</p>}
                  </AnimatePresence>
               </div>
