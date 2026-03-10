@@ -91,10 +91,21 @@ export default function StudentDetailClient() {
 
           // Fetch Family Info if parentEmail exists
           if (data.parentEmail) {
-            const familyQ = query(collection(db!, "users"), where("email", "==", data.parentEmail));
-            const familySnap = await getDocs(familyQ);
-            if (!familySnap.empty) {
-               setFamilyData(familySnap.docs[0].data());
+            try {
+              // 1. Check parent_profiles (detailed info)
+              const profileSnap = await getDoc(doc(db!, "parent_profiles", data.parentEmail));
+              if (profileSnap.exists()) {
+                 setFamilyData(profileSnap.data());
+              } else {
+                 // 2. Fallback to users collection (basic info)
+                 const familyQ = query(collection(db!, "users"), where("email", "==", data.parentEmail));
+                 const familySnap = await getDocs(familyQ);
+                 if (!familySnap.empty) {
+                    setFamilyData(familySnap.docs[0].data());
+                 }
+              }
+            } catch (err) {
+              console.error("Error fetching family data:", err);
             }
           }
 
@@ -256,7 +267,7 @@ export default function StudentDetailClient() {
           )}
 
           <div className="bg-white border border-black/5 rounded-[32px] p-8 shadow-sm">
-            <h3 className="font-black text-xl mb-6 flex items-center gap-2">
+            <h3 className="font-black text-xl mb-6 flex items-center gap-2 text-slate-800">
               <User size={20} className="text-primary" />
               General Profile
             </h3>
@@ -278,7 +289,7 @@ export default function StudentDetailClient() {
 
           {familyData && (
              <div className="bg-white border border-black/5 rounded-[32px] p-8 shadow-sm space-y-8">
-               <h3 className="font-black text-xl flex items-center gap-2 border-b border-black/5 pb-4">
+               <h3 className="font-black text-xl flex items-center gap-2 border-b border-black/5 pb-4 text-slate-800">
                  <Heart size={20} className="text-rose-500" />
                  가족 정보 (Family Info)
                </h3>
@@ -287,15 +298,15 @@ export default function StudentDetailClient() {
                <div className="space-y-4">
                  <div className="flex items-center gap-2">
                    <div className="w-1.5 h-6 bg-blue-500 rounded-full"></div>
-                   <h4 className="font-black text-sm text-black/60 uppercase tracking-widest">부 (Father)</h4>
+                   <h4 className="font-black text-sm text-black/80 uppercase tracking-widest">부 (Father)</h4>
                  </div>
                  <div className="grid grid-cols-2 gap-4">
                    <div className="bg-slate-50 p-4 rounded-2xl border border-black/5">
-                     <p className="text-[10px] font-black text-black/30 uppercase mb-1">성명</p>
+                     <p className="text-[10px] font-black text-black/50 uppercase mb-1">성명</p>
                      <p className="font-bold text-black">{familyData.fatherName || "-"}</p>
                    </div>
                    <div className="bg-slate-50 p-4 rounded-2xl border border-black/5">
-                     <p className="text-[10px] font-black text-black/30 uppercase mb-1">연락처</p>
+                     <p className="text-[10px] font-black text-black/50 uppercase mb-1">연락처</p>
                      <p className="font-mono text-xs font-bold text-black">{familyData.fatherPhone || "-"}</p>
                    </div>
                  </div>
@@ -305,15 +316,15 @@ export default function StudentDetailClient() {
                <div className="space-y-4">
                  <div className="flex items-center gap-2">
                    <div className="w-1.5 h-6 bg-rose-500 rounded-full"></div>
-                   <h4 className="font-black text-sm text-black/60 uppercase tracking-widest">모 (Mother)</h4>
+                   <h4 className="font-black text-sm text-black/80 uppercase tracking-widest">모 (Mother)</h4>
                  </div>
                  <div className="grid grid-cols-2 gap-4">
                    <div className="bg-slate-50 p-4 rounded-2xl border border-black/5">
-                     <p className="text-[10px] font-black text-black/30 uppercase mb-1">성명</p>
+                     <p className="text-[10px] font-black text-black/50 uppercase mb-1">성명</p>
                      <p className="font-bold text-black">{familyData.motherName || "-"}</p>
                    </div>
                    <div className="bg-slate-50 p-4 rounded-2xl border border-black/5">
-                     <p className="text-[10px] font-black text-black/30 uppercase mb-1">연락처</p>
+                     <p className="text-[10px] font-black text-black/50 uppercase mb-1">연락처</p>
                      <p className="font-mono text-xs font-bold text-black">{familyData.motherPhone || "-"}</p>
                    </div>
                  </div>
@@ -323,11 +334,11 @@ export default function StudentDetailClient() {
                <div className="space-y-4">
                  <div className="flex items-center gap-2">
                     <Home size={18} className="text-emerald-500" />
-                    <h4 className="font-black text-sm text-black/60 uppercase tracking-widest">주소 및 기타 정보</h4>
+                    <h4 className="font-black text-sm text-black/80 uppercase tracking-widest">주소 및 기타 정보</h4>
                  </div>
                  <div className="grid gap-4">
                     <div className="bg-slate-50 p-5 rounded-2xl border border-black/5">
-                        <p className="text-[10px] font-black text-black/30 uppercase mb-2">Residential Address</p>
+                        <p className="text-[10px] font-black text-black/50 uppercase mb-2">Residential Address</p>
                         {familyData.street ? (
                           <p className="font-bold text-black leading-relaxed">
                             {familyData.street}<br/>
@@ -356,7 +367,7 @@ export default function StudentDetailClient() {
            )}
 
           <div className="bg-white border border-black/5 rounded-[32px] p-8 shadow-sm">
-            <h3 className="font-black text-xl mb-6 flex items-center gap-2">
+            <h3 className="font-black text-xl mb-6 flex items-center gap-2 text-slate-800">
               <MessageSquare size={20} className="text-primary" />
               Communication Log
             </h3>
@@ -549,7 +560,7 @@ export default function StudentDetailClient() {
                         <User size={24} />
                      </div>
                      <div className="text-left">
-                        <p className="text-[10px] font-black text-black/30 uppercase">Student Name</p>
+                        <p className="text-[10px] font-black text-black/50 uppercase">Student Name</p>
                         <p className="font-black text-black">{student.name}</p>
                      </div>
                   </div>

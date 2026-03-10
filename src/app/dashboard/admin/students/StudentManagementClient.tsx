@@ -136,7 +136,7 @@ export default function StudentManagementClient() {
           </div>
           <div>
             <h1 className="text-3xl font-black tracking-tight text-black mb-1">{t.dashboard.admin.sidebar.students}</h1>
-            <p className="text-black/40 font-bold text-sm">{t.dashboard.admin.subtitle}</p>
+            <p className="text-black/60 font-bold text-sm">{t.dashboard.admin.subtitle}</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -157,7 +157,7 @@ export default function StudentManagementClient() {
       <section className="bg-white rounded-[40px] border border-black/5 shadow-2xl shadow-black/5 overflow-hidden">
         <div className="p-8 border-b border-black/5 flex flex-col sm:flex-row justify-between gap-4 bg-white/50 backdrop-blur-sm">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-black/30" size={18} />
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-black/40" size={18} />
             <input 
               type="text" 
               placeholder={t.dashboard.admin.searchPlaceholder}
@@ -181,7 +181,7 @@ export default function StudentManagementClient() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-50/50 text-black/40 text-xs font-black uppercase tracking-widest">
+              <tr className="bg-gray-50/50 text-black/60 text-xs font-black uppercase tracking-widest">
                 <th className="px-8 py-5 border-b border-black/5 font-black">{t.dashboard.admin.table.name}</th>
                 <th className="px-8 py-5 border-b border-black/5 font-black">{t.dashboard.admin.table.class}</th>
                 <th className="px-8 py-5 border-b border-black/5 font-black">{t.dashboard.admin.table.parent}</th>
