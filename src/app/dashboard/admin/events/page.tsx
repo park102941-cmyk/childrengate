@@ -1,10 +1,5 @@
 "use client";
 
-
-
-
-
-
 import { useState, useMemo } from "react";
 import { 
   Calendar, 
@@ -27,7 +22,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, getDocs, orderBy } from "firebase/firestore";
+import { collection, query, where, onSnapshot, addDoc, serverTimestamp, getDocs, orderBy } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useEffect } from "react";
 
@@ -61,8 +56,6 @@ interface SchoolEvent {
   location?: string;
   weeklySchedules?: { [key: string]: { startTime: string; endTime: string } };
 }
-
-const mockAttendance: AttendanceRecord[] = [];
 
 export default function EventsStatsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -99,7 +92,6 @@ export default function EventsStatsPage() {
     return () => unsubscribe();
   }, [institutionId]);
 
-  // Fetch Institution Settings (Arrival Time)
   useEffect(() => {
     if (!institutionId || !db) return;
     const q = query(collection(db!, "institutions"), where("institutionId", "==", institutionId));
@@ -115,16 +107,13 @@ export default function EventsStatsPage() {
     });
   }, [institutionId]);
 
-  // Fetch Real Attendance Data
   useEffect(() => {
     if (!institutionId || !db) return;
 
-    // 1. Fetch all students for this institution
     const studentsQ = query(collection(db!, "students"), where("institutionId", "==", institutionId));
     const unsubscribeStudents = onSnapshot(studentsQ, (studentsSnap) => {
       const allStudents = studentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // 2. Fetch today's checkin_logs
       const today = new Date().toISOString().split('T')[0];
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
@@ -136,7 +125,6 @@ export default function EventsStatsPage() {
       );
 
       const unsubscribeLogs = onSnapshot(logsQ, (logsSnap) => {
-        // Sort logs client-side to avoid index dependency
         const sortedLogs = [...logsSnap.docs].sort((a, b) => {
            const tA = (a.data().timestamp?.toDate?.() || 0).valueOf();
            const tB = (b.data().timestamp?.toDate?.() || 0).valueOf();
@@ -144,15 +132,12 @@ export default function EventsStatsPage() {
         });
         const logs = sortedLogs.map(doc => ({ id: doc.id, ...doc.data() as any }));
         
-        // Map logs to AttendanceRecord
         const records: AttendanceRecord[] = allStudents.map(student => {
           const log = logs.find(l => l.studentId === student.id && l.status === "in");
           
           if (log) {
             const logDate = log.timestamp?.toDate ? log.timestamp.toDate() : new Date();
             const logTimeStr = logDate.toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit' });
-            
-            // Compare with arrivalTime
             const isLate = logTimeStr > arrivalTime;
 
             return {
@@ -291,9 +276,14 @@ export default function EventsStatsPage() {
         
         <div className="flex items-center gap-4">
           <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-black/5">
-             <button className="px-5 py-2.5 bg-black text-white rounded-xl font-bold text-sm shadow-lg shadow-black/20">일간</button>
-             <button className="px-5 py-2.5 text-black/40 hover:text-black font-bold text-sm transition-all">주간</button>
-             <button className="px-5 py-2.5 text-black/40 hover:text-black font-bold text-sm transition-all">월간</button>
+             <button className="px-5 py-2.5 bg-black text-white rounded-xl font-bold text-sm shadow-lg shadow-black/20">데이터 통계</button>
+             <button 
+                onClick={() => window.location.href = '/dashboard/admin/calendar'}
+                className="px-5 py-2.5 text-black/40 font-bold text-sm transition-all flex items-center gap-2"
+             >
+                <Calendar size={16} className="text-primary" />
+                캘린더 보기
+             </button>
           </div>
           <button 
             onClick={() => setShowEventModal(true)}

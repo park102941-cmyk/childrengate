@@ -133,7 +133,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           <div className="space-y-1">
             <p className="px-4 text-[9px] font-black text-black/20 uppercase tracking-[0.2em] mb-3">소통 및 활동</p>
-            <NavItem href="/dashboard/admin/events" icon={Calendar} label={t.dashboard.admin.sidebar.events || "이벤트 및 통계"} active={pathname === "/dashboard/admin/events"} onClose={() => setIsSidebarOpen(false)} />
+            <NavItem href="/dashboard/admin/calendar" icon={Calendar} label="스마트 캘린더" active={pathname === "/dashboard/admin/calendar"} onClose={() => setIsSidebarOpen(false)} />
+            <NavItem href="/dashboard/admin/events" icon={Activity} label={t.dashboard.admin.sidebar.events || "이벤트 및 통계"} active={pathname === "/dashboard/admin/events"} onClose={() => setIsSidebarOpen(false)} />
             <NavItem href="/dashboard/admin/messages" icon={MessageSquare} label="학부모 메시지" active={pathname === "/dashboard/admin/messages"} onClose={() => setIsSidebarOpen(false)} />
           </div>
 
