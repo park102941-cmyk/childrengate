@@ -86,19 +86,7 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
     carNumber: "", address: "", email: ""
   });
   const [showBarcodeModal, setShowBarcodeModal] = useState<string | null>(null);
-  const [qrTimestamp, setQrTimestamp] = useState(Math.floor(Date.now() / 30000));
-  const [timeLeft, setTimeLeft] = useState(30);
-
-  // Rotate dynamic QR code every 30 seconds
-  useEffect(() => {
-    if (!showBarcodeModal) return;
-    const interval = setInterval(() => {
-      const now = Date.now();
-      setQrTimestamp(Math.floor(now / 30000));
-      setTimeLeft(30 - (Math.floor(now / 1000) % 30));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [showBarcodeModal]);
+  const dailySeed = new Date().toISOString().split('T')[0].replace(/-/g, '');
   
   // Pickup Requests Listener for Parent
   useEffect(() => {
@@ -812,15 +800,19 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
                             {child.status === 'present' ? "원내 보육 중" : child.status === 'pickup_requested' ? "하교 완료됨" : "미등교"}
                           </p>
                         )}
-                        {(child.status === 'present' || child.status === 'absent' || !child.status) && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); setShowBarcodeModal(child.id); }}
-                            className="mt-2 flex items-center gap-1.5 text-[10px] font-black text-primary bg-primary/5 px-2 py-1 rounded-lg w-fit hover:bg-primary/10 transition-all"
-                          >
-                             <BarcodeIcon size={12} /> 등하교 디지털 패스
-                          </button>
-                        )}
                       </div>
+                    </div>
+                    <div className="ml-auto flex items-center gap-3">
+                      {(child.status === 'present' || child.status === 'absent' || !child.status) && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setShowBarcodeModal(child.id); }}
+                          className="w-14 h-14 bg-primary/10 rounded-2xl flex flex-col items-center justify-center text-primary hover:bg-primary/20 transition-all shadow-xl active:scale-90 border-2 border-primary/20"
+                        >
+                           <QrCode size={26} />
+                           <span className="text-[10px] font-black mt-1 uppercase">Pass</span>
+                        </button>
+                      )}
+                      <ChevronRight size={20} className="text-black/20" />
                     </div>
                   </div>
                 </div>
@@ -1252,32 +1244,24 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
                   <h3 className="text-xl font-black text-black">Digital Attendance Pass</h3>
                   <p className="text-black/40 font-bold text-xs uppercase tracking-widest mt-1">이 바코드를 스캐너에 보여주세요</p>
                </div>
-               
-                <div className="px-8 pb-10 flex flex-col items-center">
-                  <div className="bg-white p-6 rounded-[32px] border-2 border-primary/10 shadow-inner mb-2 flex flex-col items-center gap-4">
+                               <div className="px-8 pb-10 flex flex-col items-center">
+                  <div className="bg-white p-6 rounded-[32px] border-2 border-primary/10 shadow-inner mb-6 flex flex-col items-center gap-4">
                     <QRCodeSVG 
-                      value={`kgp:${showBarcodeModal}:${qrTimestamp}`}
+                      value={`kgp:${showBarcodeModal}:${dailySeed}`}
                       size={180}
                       level="H"
                       includeMargin={true}
                     />
                     <div className="w-full h-px bg-black/5"></div>
-                    <Barcode 
-                      value={children.find(c => c.id === showBarcodeModal)?.barcodeId || showBarcodeModal} 
-                      width={1.2}
-                      height={40}
-                      fontSize={10}
-                    />
+                    <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-tighter flex items-center gap-2">
+                      <span className="flex items-center gap-1">
+                        <ShieldCheck size={10} /> 
+                        당일 한정 보안 패스
+                      </span>
+                      <span className="text-black/10">|</span>
+                      <span>{new Date().toLocaleDateString()}</span>
+                    </p>
                   </div>
-                  
-                  <p className="text-[9px] font-bold text-emerald-600 mb-6 uppercase tracking-tighter flex items-center gap-2">
-                    <span className="flex items-center gap-1">
-                      <RefreshCcw size={10} className="animate-spin-slow" /> 
-                      {timeLeft}초 후 자동 갱신
-                    </span>
-                    <span className="text-black/10">|</span>
-                    <span>보안 강화 모드 활성</span>
-                  </p>
                   
                   <div className="w-full bg-slate-50 p-5 rounded-2xl mb-8 flex items-center gap-4">
                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm">

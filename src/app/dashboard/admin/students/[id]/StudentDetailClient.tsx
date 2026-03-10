@@ -67,18 +67,7 @@ export default function StudentDetailClient() {
   const [posts, setPosts] = useState<any[]>([]);
   const [familyData, setFamilyData] = useState<any>(null);
   const [showQrModal, setShowQrModal] = useState(false);
-  const [qrTimestamp, setQrTimestamp] = useState(Math.floor(Date.now() / 30000));
-  const [timeLeft, setTimeLeft] = useState(30);
-
-  useEffect(() => {
-    if (!showQrModal) return;
-    const interval = setInterval(() => {
-      const now = Date.now();
-      setQrTimestamp(Math.floor(now / 30000));
-      setTimeLeft(30 - (Math.floor(now / 1000) % 30));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [showQrModal]);
+  const dailySeed = new Date().toISOString().split('T')[0].replace(/-/g, '');
 
   useEffect(() => {
     if (!id || !db || !institutionId) return;
@@ -532,7 +521,7 @@ export default function StudentDetailClient() {
                <div className="px-8 pb-10 flex flex-col items-center">
                   <div className="bg-white p-6 rounded-[32px] border-2 border-indigo-100 shadow-inner mb-2 flex flex-col items-center gap-4">
                     <QRCodeSVG 
-                      value={`kgp:${student.id}:${qrTimestamp}`}
+                      value={`kgp:${student.id}:${dailySeed}`}
                       size={180}
                       level="H"
                       includeMargin={true}
@@ -548,11 +537,11 @@ export default function StudentDetailClient() {
                   
                   <p className="text-[9px] font-bold text-indigo-600 mb-6 uppercase tracking-tighter flex items-center gap-2">
                     <span className="flex items-center gap-1">
-                      <RefreshCcw size={10} className="animate-spin" /> 
-                      {timeLeft}초 후 자동 갱신
+                      <ShieldCheck size={10} /> 
+                      당일 보안 패스 (Admin Preview)
                     </span>
                     <span className="text-black/10">|</span>
-                    <span>Admin Verification Mode</span>
+                    <span>{new Date().toLocaleDateString()}</span>
                   </p>
                   
                   <div className="w-full bg-slate-50 p-5 rounded-2xl mb-8 flex items-center gap-4">

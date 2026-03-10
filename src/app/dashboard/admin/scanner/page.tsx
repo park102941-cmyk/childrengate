@@ -83,13 +83,12 @@ export default function BarcodeScannerPage() {
           return;
         }
 
-        const [_, studentId, timestampStr] = parts;
-        const scanTimestamp = parseInt(timestampStr);
-        const currentTimestamp = Math.floor(Date.now() / 30000);
+        const [_, studentId, qrSeed] = parts;
+        const todaySeed = new Date().toISOString().split('T')[0].replace(/-/g, '');
 
-        // Security: Check if QR is too old (10 intervals = 5 minute window for safety)
-        if (Math.abs(currentTimestamp - scanTimestamp) > 10) {
-          provideFeedback(false, "만료된 QR 코드입니다.");
+        // Daily Security: QR must match today's date
+        if (qrSeed !== todaySeed) {
+          provideFeedback(false, "만료된 QR 코드입니다 (오늘 생성된 코드가 아님).");
           setIsProcessing(false);
           return;
         }
