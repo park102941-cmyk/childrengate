@@ -26,6 +26,7 @@ interface DispatchStudent {
   hasPendingRequest?: boolean; // New flag for the approval flow
   isApproved?: boolean;
   activeRequestId?: string; // Explicitly track the request ID
+  carNumber?: string;
 }
 
 export default function DispatchDashboard() {
@@ -133,7 +134,8 @@ export default function DispatchDashboard() {
         photo: student.photo,
         hasPendingRequest,
         isApproved,
-        activeRequestId: activeRequest ? activeRequest.id : undefined
+        activeRequestId: activeRequest ? activeRequest.id : undefined,
+        carNumber: activeRequest?.carNumber || student.carNumber || null
       } as DispatchStudent;
     });
 
@@ -477,7 +479,13 @@ export default function DispatchDashboard() {
                                       <AlertCircle size={10} /> 미등교
                                    </span>
                                 )}
-                              </div>
+                                 {student.carNumber && (
+                                    <span className="px-2.5 py-1 bg-black text-white text-xs font-black rounded-lg flex items-center gap-1.5 shadow-lg shadow-black/10 border-none ring-2 ring-white">
+                                       <Car size={12} fill="currentColor" />
+                                       {student.carNumber}
+                                    </span>
+                                 )}
+                               </div>
                               <p className="text-sm font-bold text-black/50 flex items-center gap-2">
                                 보호자: <span className={student.status === 'absent' ? 'text-black/30' : 'text-black'}>{student.parentName}</span>
                                 {student.requestTime && (student.hasPendingRequest || student.status === 'pickup_requested' || student.status === 'released') && (

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { motion } from "framer-motion";
-import { Download, Copy, Settings, Users, Printer, ExternalLink, UserPlus, Check, Globe, Car, LogOut } from "lucide-react";
+import { Download, Copy, Settings, Users, Printer, ExternalLink, UserPlus, Check, Globe, Car, LogOut, QrCode, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
@@ -291,6 +291,42 @@ export default function QRManagementPage() {
                   전체 학생용 이름표(바코드 포함) 인쇄하기
                </button>
             </div>
+        </section>
+
+        {/* Security QR Explanation Section */}
+        <section className="bg-indigo-600 rounded-[40px] shadow-2xl shadow-indigo-600/20 p-10 lg:p-12 text-white lg:col-span-2 overflow-hidden relative">
+             <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-48 -mt-48"></div>
+             
+             <div className="relative z-10 flex flex-col lg:flex-row items-center gap-10">
+                <div className="w-24 h-24 bg-white/20 rounded-3xl flex items-center justify-center shrink-0">
+                   <ShieldCheck size={48} className="text-white" />
+                </div>
+                
+                <div className="flex-1 text-center lg:text-left">
+                   <h2 className="text-2xl font-black mb-4">학부모 전용 보안 QR 안내</h2>
+                   <p className="font-bold text-white/80 leading-relaxed mb-6">
+                      학부모님의 휴대폰(학부모 포털)에서는 복제가 불가능한 **30초 주기의 동적 보안 QR**이 자동으로 생성됩니다. <br/>
+                      가방에 부착된 일반 바코드보다 보안성을 높으며, 부정 사용을 원천 차단합니다.
+                   </p>
+                   
+                   <div className="flex flex-wrap gap-4 justify-center lg:justify-start">
+                      <div className="bg-white/10 px-6 py-3 rounded-2xl border border-white/10">
+                         <p className="text-[10px] uppercase font-black text-white/40 mb-1">Location</p>
+                         <p className="text-xs font-black">학부모 포털 &gt; 자녀 카드 &gt; 보안 패스</p>
+                      </div>
+                      <div className="bg-white/10 px-6 py-3 rounded-2xl border border-white/10">
+                         <p className="text-[10px] uppercase font-black text-white/40 mb-1">Rotation</p>
+                         <p className="text-xs font-black">30초마다 자동 갱신</p>
+                      </div>
+                      <button 
+                        onClick={() => router.push('/dashboard/admin/students')}
+                        className="bg-white text-indigo-600 px-8 py-3 rounded-2xl font-black shadow-xl hover:scale-105 transition-all text-sm"
+                      >
+                        학생 목록에서 확인하기
+                      </button>
+                   </div>
+                </div>
+             </div>
         </section>
       </div>
     </main>

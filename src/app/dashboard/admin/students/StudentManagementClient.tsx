@@ -80,9 +80,12 @@ export default function StudentManagementClient() {
     if (!newStudent.name || !newStudent.grade || !db || !institutionId) return;
     
     try {
+        const barcodeId = `kg-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
         const docRef = await addDoc(collection(db, "students"), {
           ...newStudent,
+          barcodeId,
           institutionId: institutionId,
+          status: "absent",
           createdAt: serverTimestamp()
         });
         

@@ -14,7 +14,7 @@ import {
   User,
   signInWithPopup
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -71,10 +71,26 @@ export default function LoginPage() {
              // 1. Check URL for instId or id first (from QR code or manual link)
              const urlInstId = searchParams?.get("instId") || searchParams?.get("id");
              
+             // 3. Smart Search: If no URL ID, check if user has students in ANY institution
+             let finalInstId = urlInstId || userData.institutionId;
+             
+             if (!urlInstId && firebaseUser.email) {
+                try {
+                  const studentQ = query(collection(db, "students"), where("parentEmail", "==", firebaseUser.email));
+                  const studentSnap = await getDocs(studentQ);
+                  if (!studentSnap.empty) {
+                    // Prioritize the institution where students are actually found
+                    finalInstId = studentSnap.docs[0].data().institutionId;
+                  }
+                } catch (e) {
+                  console.error("Error finding student records during login:", e);
+                }
+             }
+
              // 2. Fallback to userData.institutionId if none in URL
-             const targetPortal = urlInstId 
-                ? `/p-portal?id=${urlInstId}` 
-                : (userData.institutionId ? `/p-portal?id=${userData.institutionId}` : "/p-portal");
+             const targetPortal = finalInstId 
+                ? `/p-portal?id=${finalInstId}` 
+                : "/p-portal";
                 
              window.location.href = targetPortal;
          }

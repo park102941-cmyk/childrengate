@@ -4,13 +4,15 @@ import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
+import { QRCodeSVG } from "qrcode.react";
 import Link from "next/link";
 import { 
   QrCode, Plus, MessageSquare, FileIcon, ChevronRight, User, 
   ShieldCheck, Check, AlertCircle, XCircle, Timer, LogIn, 
   LogOut, Edit2, Phone, Mail, Share2, Calendar, CheckCircle2,
-  Trash2, ArrowRight, Clock, UserCheck, Users, Heart, Home} from "lucide-react";
+  Trash2, ArrowRight, Clock, UserCheck, Users, Heart, Home, Car, RefreshCcw, Barcode as BarcodeIcon} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import Barcode from "react-barcode";
 import { db, auth } from "@/lib/firebase";
 import { 
   collection, addDoc, serverTimestamp, query, where, doc, 
@@ -80,8 +82,23 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
   const [familyInfo, setFamilyInfo] = useState({
     fatherName: "", fatherPhone: "", fatherBirth: "",
     motherName: "", motherPhone: "", motherBirth: "",
-    address: "", email: ""
+    street: "", city: "", state: "", zip: "",
+    carNumber: "", address: "", email: ""
   });
+  const [showBarcodeModal, setShowBarcodeModal] = useState<string | null>(null);
+  const [qrTimestamp, setQrTimestamp] = useState(Math.floor(Date.now() / 30000));
+  const [timeLeft, setTimeLeft] = useState(30);
+
+  // Rotate dynamic QR code every 30 seconds
+  useEffect(() => {
+    if (!showBarcodeModal) return;
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setQrTimestamp(Math.floor(now / 30000));
+      setTimeLeft(30 - (Math.floor(now / 1000) % 30));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [showBarcodeModal]);
   
   // Pickup Requests Listener for Parent
   useEffect(() => {
@@ -124,15 +141,24 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
     if (user?.uid && currentInstId && db) {
       const syncPref = async () => {
         try {
+          // Optimization: Only set as default if this institution actually has their children
+          // or if it's the only one they have registered.
+          if (children.length === 0 && allInstitutions.length > 1) {
+             console.log("Not syncing preference for empty institution portal");
+             return;
+          }
+          
           const userRef = doc(db!, "users", user.uid);
           await updateDoc(userRef, { institutionId: currentInstId });
         } catch (err) {
           console.error("Failed to sync institution preference:", err);
         }
       };
-      syncPref();
+      // Delay slightly to ensure children list is loaded
+      const timer = setTimeout(syncPref, 2000);
+      return () => clearTimeout(timer);
     }
-  }, [currentInstId, user?.uid, db]);
+  }, [currentInstId, user?.uid, db, children.length, allInstitutions.length]);
 
   useEffect(() => {
     if (authLoading || redirectRef.current) return;
@@ -397,7 +423,9 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
         });
       }
       setSelectedChildren([]);
-      alert("등교 확인 완료!");
+      if (selectedChildren.length > 0) {
+        setShowBarcodeModal(selectedChildren[0]);
+      }
     } catch (error) {
       console.error(error);
       alert("오류 발생");
@@ -420,6 +448,7 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
           grade: child.grade,
           parentName: user?.displayName || user?.email || searchParams?.get("guestId") || "학부모",
           institutionId: currentInstId,
+          carNumber: familyInfo.carNumber || null,
           status: "pending",
           requestTime: serverTimestamp()
         });
@@ -783,14 +812,34 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
                             {child.status === 'present' ? "원내 보육 중" : child.status === 'pickup_requested' ? "하교 완료됨" : "미등교"}
                           </p>
                         )}
+                        {(child.status === 'present' || child.status === 'absent' || !child.status) && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setShowBarcodeModal(child.id); }}
+                            className="mt-2 flex items-center gap-1.5 text-[10px] font-black text-primary bg-primary/5 px-2 py-1 rounded-lg w-fit hover:bg-primary/10 transition-all"
+                          >
+                             <BarcodeIcon size={12} /> 등하교 디지털 패스
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
               ))}
               {children.length === 0 && (
-                <div className="text-center py-20 bg-slate-50 rounded-[40px] border-2 border-dashed border-black/5">
-                  <p className="font-black text-black/20">등록된 자녀가 없습니다</p>
+                <div className="text-center py-20 bg-slate-50 rounded-[40px] border-2 border-dashed border-black/5 px-6">
+                  <p className="font-black text-black/20 mb-4 tracking-tight">등록된 자녀가 없습니다</p>
+                  {allInstitutions.length > 1 && (
+                    <div className="space-y-4">
+                       <p className="text-[10px] font-bold text-black/40 leading-relaxed uppercase tracking-widest">다른 등록된 기관에서 자녀 정보를<br/>확인해 보시겠습니까?</p>
+                       <button 
+                         onClick={() => setShowInstList(true)}
+                         className="px-8 py-4 bg-primary text-white font-black rounded-2xl text-sm shadow-xl shadow-primary/20 active:scale-95 transition-all flex items-center justify-center gap-2 mx-auto"
+                       >
+                         <Users size={18} />
+                         기관 전환하기
+                       </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -910,11 +959,49 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
                    <div className="w-8 h-8 bg-emerald-500/10 rounded-xl flex items-center justify-center">
                       <Home size={16} className="text-emerald-500" />
                    </div>
-                   <h3 className="font-black text-lg">공통 주소</h3>
+                   <h3 className="font-black text-lg">주소 정보 (US Format)</h3>
+                </div>
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">Street Address</label>
+                    <input value={familyInfo.street} onChange={e => setFamilyInfo({...familyInfo, street: e.target.value})} placeholder="1234 Park Ave" className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-emerald-500/20 focus:bg-white transition-all" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">City</label>
+                      <input value={familyInfo.city} onChange={e => setFamilyInfo({...familyInfo, city: e.target.value})} placeholder="City" className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-emerald-500/20 focus:bg-white transition-all" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">State</label>
+                        <input value={familyInfo.state} onChange={e => setFamilyInfo({...familyInfo, state: e.target.value})} placeholder="TX" className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-emerald-500/20 focus:bg-white transition-all text-center uppercase" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">ZIP Code</label>
+                        <input value={familyInfo.zip} onChange={e => setFamilyInfo({...familyInfo, zip: e.target.value})} placeholder="75201" className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-emerald-500/20 focus:bg-white transition-all text-center" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 border-b border-black/5 pb-2">
+                   <div className="w-8 h-8 bg-blue-500/10 rounded-xl flex items-center justify-center">
+                      <Car size={16} className="text-blue-500" />
+                   </div>
+                   <h3 className="font-black text-lg">기타 정보</h3>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">도로명 주소</label>
-                  <input value={familyInfo.address} onChange={e => setFamilyInfo({...familyInfo, address: e.target.value})} placeholder="서울특별시 강남구..." className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-bold text-black border-2 border-transparent focus:border-emerald-500/20 focus:bg-white transition-all" />
+                  <label className="text-[10px] font-black text-black/30 ml-4 uppercase tracking-widest">차량번호 뒤 4자리</label>
+                  <input 
+                    value={familyInfo.carNumber} 
+                    onChange={e => setFamilyInfo({...familyInfo, carNumber: e.target.value.substring(0, 4)})} 
+                    placeholder="예: 7788" 
+                    maxLength={4}
+                    className="w-full bg-slate-50 px-6 py-4 rounded-2xl outline-none font-black text-black border-2 border-transparent focus:border-blue-500/20 focus:bg-white transition-all text-xl tracking-[0.5em] text-center" 
+                  />
+                  <p className="text-[9px] text-black/30 font-bold ml-4 mt-2">* 하교 시 차량 식별을 위해 필요합니다.</p>
                 </div>
               </div>
 
@@ -1138,6 +1225,83 @@ export default function ParentPortal({ portalId }: { portalId?: string }) {
                   {loading ? "확인 중..." : "기관 연결하기"}
                 </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showBarcodeModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div 
+               initial={{ opacity: 0 }} 
+               animate={{ opacity: 1 }} 
+               exit={{ opacity: 0 }}
+               onClick={() => setShowBarcodeModal(null)}
+               className="absolute inset-0 bg-black/80 backdrop-blur-xl"
+            />
+            <motion.div 
+               initial={{ scale: 0.9, opacity: 0, y: 20 }}
+               animate={{ scale: 1, opacity: 1, y: 0 }}
+               exit={{ scale: 0.9, opacity: 0, y: 20 }}
+               className="relative bg-white w-full max-w-sm rounded-[40px] overflow-hidden shadow-2xl"
+            >
+               <div className="p-8 text-center bg-gradient-to-b from-primary/5 to-white">
+                  <div className="w-16 h-16 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-4 text-primary">
+                    <BarcodeIcon size={32} />
+                  </div>
+                  <h3 className="text-xl font-black text-black">Digital Attendance Pass</h3>
+                  <p className="text-black/40 font-bold text-xs uppercase tracking-widest mt-1">이 바코드를 스캐너에 보여주세요</p>
+               </div>
+               
+                <div className="px-8 pb-10 flex flex-col items-center">
+                  <div className="bg-white p-6 rounded-[32px] border-2 border-primary/10 shadow-inner mb-2 flex flex-col items-center gap-4">
+                    <QRCodeSVG 
+                      value={`kgp:${showBarcodeModal}:${qrTimestamp}`}
+                      size={180}
+                      level="H"
+                      includeMargin={true}
+                    />
+                    <div className="w-full h-px bg-black/5"></div>
+                    <Barcode 
+                      value={children.find(c => c.id === showBarcodeModal)?.barcodeId || showBarcodeModal} 
+                      width={1.2}
+                      height={40}
+                      fontSize={10}
+                    />
+                  </div>
+                  
+                  <p className="text-[9px] font-bold text-emerald-600 mb-6 uppercase tracking-tighter flex items-center gap-2">
+                    <span className="flex items-center gap-1">
+                      <RefreshCcw size={10} className="animate-spin-slow" /> 
+                      {timeLeft}초 후 자동 갱신
+                    </span>
+                    <span className="text-black/10">|</span>
+                    <span>보안 강화 모드 활성</span>
+                  </p>
+                  
+                  <div className="w-full bg-slate-50 p-5 rounded-2xl mb-8 flex items-center gap-4">
+                     <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                        <User className="text-black/20" />
+                     </div>
+                     <div className="text-left">
+                        <p className="text-[10px] font-black text-black/30 uppercase">Student Name</p>
+                        <p className="font-black text-black">{children.find(c => c.id === showBarcodeModal)?.name}</p>
+                     </div>
+                  </div>
+
+                  <button 
+                    onClick={() => setShowBarcodeModal(null)}
+                    className="w-full py-4 bg-black text-white font-black rounded-2xl hover:opacity-80 transition-all active:scale-95 shadow-xl"
+                  >
+                    닫기
+                  </button>
+               </div>
+               
+               <div className="bg-primary/5 py-3 text-center">
+                  <p className="text-[10px] font-black text-primary/40 uppercase tracking-widest flex items-center justify-center gap-2">
+                    <ShieldCheck size={12} /> Secure Gateway Protocol
+                  </p>
+               </div>
             </motion.div>
           </div>
         )}

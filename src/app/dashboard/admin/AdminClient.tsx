@@ -20,6 +20,7 @@ import {
   LogOut,
   Edit2,
   Share2,
+  Barcode as BarcodeIcon,
   type LucideIcon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -393,8 +394,8 @@ export default function AdminDashboard() {
 
            {/* Quick Action Matrix - More compact */}
            <section className="bg-white rounded-[32px] border border-black/5 shadow-sm p-6">
-              <h3 className="font-black text-lg flex items-center gap-2 mb-6">
-                <TrendingUp className="text-primary" size={20} />
+              <h3 className="font-black text-xl text-slate-900 flex items-center gap-2 mb-6">
+                <TrendingUp className="text-primary" size={22} />
                 시스템 빠른 실행
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -411,6 +412,10 @@ export default function AdminDashboard() {
                     onClick={() => router.push('/dashboard/admin/qr')}
                   />
                   <QuickAction 
+                    icon={BarcodeIcon} label="바코드 스캐너" color="bg-slate-900 text-white"
+                    onClick={() => router.push('/dashboard/admin/scanner')}
+                  />
+                  <QuickAction 
                     icon={Calendar} label="일정 관리" color="bg-amber-50 text-amber-600"
                     onClick={() => router.push('/dashboard/admin/events')}
                   />
@@ -420,10 +425,10 @@ export default function AdminDashboard() {
            {/* Schedule Board - List style to save space */}
            <section className="bg-white rounded-[32px] border border-black/5 p-6 shadow-sm">
                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-black text-lg flex items-center gap-2">
-                     <Calendar className="text-primary" size={20} />
-                     오늘의 일정
-                  </h3>
+                   <h3 className="font-black text-xl text-slate-900 flex items-center gap-2">
+                      <Calendar className="text-primary" size={22} />
+                      오늘의 일정
+                   </h3>
                   <button onClick={() => router.push('/dashboard/admin/events')} className="text-[10px] font-black text-primary bg-primary/5 px-3 py-1.5 rounded-full hover:bg-primary/10 transition-all uppercase tracking-widest">Manage</button>
                </div>
                
@@ -460,8 +465,8 @@ export default function AdminDashboard() {
            
            {/* Activity Feed */}
            <section className="bg-white rounded-[32px] border border-black/5 p-6 shadow-sm h-fit">
-              <h3 className="font-black text-lg mb-6 flex items-center gap-2">
-                <Activity className="text-primary" size={20} />
+               <h3 className="font-black text-xl text-slate-900 mb-6 flex items-center gap-2">
+                <Activity className="text-primary" size={22} />
                 최신 활동
               </h3>
               <div className="space-y-5 relative">
@@ -491,8 +496,8 @@ export default function AdminDashboard() {
 
            {/* Guides & Sharing Support */}
            <section className="bg-white rounded-[32px] border border-black/5 p-6 shadow-sm overflow-hidden">
-              <h3 className="font-black text-lg mb-6 flex items-center gap-2">
-                <Share2 className="text-primary" size={20} />
+               <h3 className="font-black text-xl text-slate-900 mb-6 flex items-center gap-2">
+                <Share2 className="text-primary" size={22} />
                 가이드 및 공유
               </h3>
               

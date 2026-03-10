@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
 import { db } from "@/lib/firebase";
@@ -16,6 +17,8 @@ import {
     getDocs,
     updateDoc
 } from "firebase/firestore";
+import { QRCodeSVG } from "qrcode.react";
+import Barcode from "react-barcode";
 import { 
     ArrowLeft, 
     Users, 
@@ -29,7 +32,14 @@ import {
     Paperclip, 
     Send, 
     FileIcon,
-    Camera
+    Camera,
+    Heart,
+    Home,
+    Car,
+    QrCode,
+    RefreshCcw,
+    XCircle,
+    ShieldCheck
 } from "lucide-react";
 
 interface Activity {
@@ -55,6 +65,20 @@ export default function StudentDetailClient() {
   const [timeFilter, setTimeFilter] = useState("30days");
   const [comment, setComment] = useState("");
   const [posts, setPosts] = useState<any[]>([]);
+  const [familyData, setFamilyData] = useState<any>(null);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrTimestamp, setQrTimestamp] = useState(Math.floor(Date.now() / 30000));
+  const [timeLeft, setTimeLeft] = useState(30);
+
+  useEffect(() => {
+    if (!showQrModal) return;
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setQrTimestamp(Math.floor(now / 30000));
+      setTimeLeft(30 - (Math.floor(now / 1000) % 30));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [showQrModal]);
 
   useEffect(() => {
     if (!id || !db || !institutionId) return;
@@ -75,6 +99,15 @@ export default function StudentDetailClient() {
             return;
           }
           setStudent({ id: studentSnap.id, ...data });
+
+          // Fetch Family Info if parentEmail exists
+          if (data.parentEmail) {
+            const familyQ = query(collection(db!, "users"), where("email", "==", data.parentEmail));
+            const familySnap = await getDocs(familyQ);
+            if (!familySnap.empty) {
+               setFamilyData(familySnap.docs[0].data());
+            }
+          }
 
           // Fetch Activities (logs)
           const qLogs = query(
@@ -202,6 +235,13 @@ export default function StudentDetailClient() {
           </div>
           
           <div className="flex items-center gap-3">
+             <button 
+               onClick={() => setShowQrModal(true)}
+               className="apple-button-secondary flex items-center gap-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+             >
+               <QrCode size={18} />
+               보안 QR 패스 확인
+             </button>
              <button className="apple-button-secondary flex items-center gap-2">
                <Edit3 size={18} />
                {t.dashboard.studentProfile?.editProfile || "정보 수정"}
@@ -242,10 +282,89 @@ export default function StudentDetailClient() {
               </div>
               <div className="grid grid-cols-2 gap-2 border-b border-black/5 pb-4 last:border-0 last:pb-0 items-center">
                 <span className="text-black/50 font-black tracking-widest uppercase text-[10px]">Institution</span>
-                <span className="font-black text-primary text-right uppercase tracking-tight">{institutionId || "GATE-KCBL"}</span>
+                 <span className="font-black text-primary text-right uppercase tracking-tight">{student.institutionId || institutionId || "-"}</span>
               </div>
             </div>
           </div>
+
+          {familyData && (
+             <div className="bg-white border border-black/5 rounded-[32px] p-8 shadow-sm space-y-8">
+               <h3 className="font-black text-xl flex items-center gap-2 border-b border-black/5 pb-4">
+                 <Heart size={20} className="text-rose-500" />
+                 가족 정보 (Family Info)
+               </h3>
+               
+               {/* Father Info */}
+               <div className="space-y-4">
+                 <div className="flex items-center gap-2">
+                   <div className="w-1.5 h-6 bg-blue-500 rounded-full"></div>
+                   <h4 className="font-black text-sm text-black/60 uppercase tracking-widest">부 (Father)</h4>
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                   <div className="bg-slate-50 p-4 rounded-2xl border border-black/5">
+                     <p className="text-[10px] font-black text-black/30 uppercase mb-1">성명</p>
+                     <p className="font-bold text-black">{familyData.fatherName || "-"}</p>
+                   </div>
+                   <div className="bg-slate-50 p-4 rounded-2xl border border-black/5">
+                     <p className="text-[10px] font-black text-black/30 uppercase mb-1">연락처</p>
+                     <p className="font-mono text-xs font-bold text-black">{familyData.fatherPhone || "-"}</p>
+                   </div>
+                 </div>
+               </div>
+
+               {/* Mother Info */}
+               <div className="space-y-4">
+                 <div className="flex items-center gap-2">
+                   <div className="w-1.5 h-6 bg-rose-500 rounded-full"></div>
+                   <h4 className="font-black text-sm text-black/60 uppercase tracking-widest">모 (Mother)</h4>
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                   <div className="bg-slate-50 p-4 rounded-2xl border border-black/5">
+                     <p className="text-[10px] font-black text-black/30 uppercase mb-1">성명</p>
+                     <p className="font-bold text-black">{familyData.motherName || "-"}</p>
+                   </div>
+                   <div className="bg-slate-50 p-4 rounded-2xl border border-black/5">
+                     <p className="text-[10px] font-black text-black/30 uppercase mb-1">연락처</p>
+                     <p className="font-mono text-xs font-bold text-black">{familyData.motherPhone || "-"}</p>
+                   </div>
+                 </div>
+               </div>
+
+               {/* Address Info */}
+               <div className="space-y-4">
+                 <div className="flex items-center gap-2">
+                    <Home size={18} className="text-emerald-500" />
+                    <h4 className="font-black text-sm text-black/60 uppercase tracking-widest">주소 및 기타 정보</h4>
+                 </div>
+                 <div className="grid gap-4">
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-black/5">
+                        <p className="text-[10px] font-black text-black/30 uppercase mb-2">Residential Address</p>
+                        {familyData.street ? (
+                          <p className="font-bold text-black leading-relaxed">
+                            {familyData.street}<br/>
+                            {familyData.city}, {familyData.state} {familyData.zip}
+                          </p>
+                        ) : (
+                          <p className="font-bold text-black leading-relaxed">{familyData.address || "등록된 주소가 없습니다."}</p>
+                        )}
+                    </div>
+                    
+                    {familyData.carNumber && (
+                      <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100 flex items-center justify-between">
+                         <div className="flex items-center gap-3">
+                            <Car size={20} className="text-blue-500" />
+                            <div>
+                               <p className="text-[10px] font-black text-blue-400 uppercase">Registered Car</p>
+                               <p className="text-lg font-black text-blue-900 tracking-widest">{familyData.carNumber}</p>
+                            </div>
+                         </div>
+                         <span className="text-[9px] font-black text-blue-300 uppercase border border-blue-200 px-2 py-1 rounded-md tracking-tighter">Verified</span>
+                      </div>
+                    )}
+                 </div>
+               </div>
+             </div>
+           )}
 
           <div className="bg-white border border-black/5 rounded-[32px] p-8 shadow-sm">
             <h3 className="font-black text-xl mb-6 flex items-center gap-2">
@@ -384,6 +503,85 @@ export default function StudentDetailClient() {
           </section>
         </div>
       </div>
+
+      {/* Dynamic QR Modal */}
+      <AnimatePresence>
+        {showQrModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div 
+               initial={{ opacity: 0 }} 
+               animate={{ opacity: 1 }} 
+               exit={{ opacity: 0 }}
+               onClick={() => setShowQrModal(false)}
+               className="absolute inset-0 bg-black/60 backdrop-blur-xl"
+            />
+            <motion.div 
+               initial={{ scale: 0.9, opacity: 0, y: 20 }}
+               animate={{ scale: 1, opacity: 1, y: 0 }}
+               exit={{ scale: 0.9, opacity: 0, y: 20 }}
+               className="relative bg-white w-full max-w-sm rounded-[40px] overflow-hidden shadow-2xl"
+            >
+               <div className="p-8 text-center bg-gradient-to-b from-indigo-50 to-white">
+                  <div className="w-16 h-16 bg-indigo-100 rounded-3xl flex items-center justify-center mx-auto mb-4 text-indigo-600">
+                    <QrCode size={32} />
+                  </div>
+                  <h3 className="text-xl font-black text-black">Student Security Pass</h3>
+                  <p className="text-black/40 font-bold text-xs uppercase tracking-widest mt-1">학부모 휴대폰에 표시되는 동일한 화면입니다</p>
+               </div>
+               
+               <div className="px-8 pb-10 flex flex-col items-center">
+                  <div className="bg-white p-6 rounded-[32px] border-2 border-indigo-100 shadow-inner mb-2 flex flex-col items-center gap-4">
+                    <QRCodeSVG 
+                      value={`kgp:${student.id}:${qrTimestamp}`}
+                      size={180}
+                      level="H"
+                      includeMargin={true}
+                    />
+                    <div className="w-full h-px bg-black/5"></div>
+                    <Barcode 
+                      value={student.barcodeId || student.id} 
+                      width={1.2}
+                      height={40}
+                      fontSize={10}
+                    />
+                  </div>
+                  
+                  <p className="text-[9px] font-bold text-indigo-600 mb-6 uppercase tracking-tighter flex items-center gap-2">
+                    <span className="flex items-center gap-1">
+                      <RefreshCcw size={10} className="animate-spin" /> 
+                      {timeLeft}초 후 자동 갱신
+                    </span>
+                    <span className="text-black/10">|</span>
+                    <span>Admin Verification Mode</span>
+                  </p>
+                  
+                  <div className="w-full bg-slate-50 p-5 rounded-2xl mb-8 flex items-center gap-4">
+                     <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm text-black/20">
+                        <User size={24} />
+                     </div>
+                     <div className="text-left">
+                        <p className="text-[10px] font-black text-black/30 uppercase">Student Name</p>
+                        <p className="font-black text-black">{student.name}</p>
+                     </div>
+                  </div>
+
+                  <button 
+                    onClick={() => setShowQrModal(false)}
+                    className="w-full py-4 bg-black text-white font-black rounded-2xl hover:opacity-80 transition-all active:scale-95 shadow-xl"
+                  >
+                    확인 완료
+                  </button>
+               </div>
+               
+               <div className="bg-indigo-600 py-3 text-center">
+                  <p className="text-[10px] font-black text-white/40 uppercase tracking-widest flex items-center justify-center gap-2">
+                    <ShieldCheck size={12} /> Secure Gateway Protocol v1.5
+                  </p>
+               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }
