@@ -125,31 +125,32 @@ export default function LoginPage() {
 
     // 1. Handle Google Redirect Result
     const checkRedirect = async () => {
+      if (!auth || redirectStarted.current) return;
       try {
-        if (!auth) return;
-        const result = await getRedirectResult(auth);
+        const result = await getRedirectResult(auth!);
         if (result?.user && !redirectStarted.current) {
           console.log("Google Redirect Result Success");
           const savedType = localStorage.getItem("kg_login_type") as "parent" | "institution" | null;
-          handleUserPostLogin(result.user, savedType || undefined);
+          await handleUserPostLogin(result.user, savedType || undefined).catch(e => {
+            console.error("Post-login redirect failed:", e);
+          });
         }
       } catch (err: any) {
-        console.error("Redirect Result error:", err);
-        setError("Google 로그인에 실패했습니다. (Redirect)");
+        console.error("Redirect Result error details:", err);
+        // Ignore "missing initial state" if we didn't just come from a redirect
+        if (err.code === 'auth/missing-initial-state' || err.code === 'auth/internal-error') {
+           console.log("Transient or state error ignored during mount check");
+           return;
+        }
+        setError("로그인 결과 처리 중 오류가 발생했습니다. 다시 시도해 주세요.");
       }
     };
-    checkRedirect();
-
+    
     // 2. Auth State Change (Auto-login)
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      // Don't auto-login if they just logged out
-      if (searchParams?.get("logout") === "true") {
-        console.log("Ignoring auto-login due to explicit logout");
-        return;
-      }
+    const unsubscribe = onAuthStateChanged(auth!, (firebaseUser) => {
+      if (searchParams?.get("logout") === "true") return;
 
       if (firebaseUser && !loading && !redirectStarted.current) {
-        // Only auto-login if the user opted in or if we trust the session
         const isAutoLoginEnabled = localStorage.getItem("kg_auto_login") === "true";
         if (isAutoLoginEnabled) {
           handleUserPostLogin(firebaseUser);
@@ -157,7 +158,15 @@ export default function LoginPage() {
       }
     });
 
-    return () => unsubscribe();
+    // Slight delay for redirect check
+    const t = setTimeout(() => {
+        checkRedirect();
+    }, 500);
+
+    return () => {
+        clearTimeout(t);
+        unsubscribe();
+    };
   }, [loading, searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -190,26 +199,32 @@ export default function LoginPage() {
       localStorage.setItem("kg_login_type", userType);
       
       const provider = new GoogleAuthProvider();
+      // Ensure local persistence for better cross-tab/refresh stability
+      if (auth) await setPersistence(auth, browserLocalPersistence);
+
       try {
+        if (!auth) throw new Error("Auth instance is missing");
         const result = await signInWithPopup(auth, provider);
         handleUserPostLogin(result.user, userType);
       } catch (popupErr: any) {
-        console.warn("Popup blocked or failed, trying redirect...", popupErr);
+        console.warn("Popup flow failed, trying fallback...", popupErr.code);
+        
         if (popupErr.code === 'auth/popup-blocked') {
-          setError("팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해 주세요.");
+          setError("팝업이 차단되었습니다. 주소창의 팝업 차단해제 버튼을 누르거나 다시 시도해 주세요.");
           setLoading(false);
-          // Still try redirect as a last resort, but user is warned
-          await signInWithRedirect(auth, provider);
         } else if (popupErr.code === 'auth/cancelled-by-user') {
           setLoading(false);
         } else {
-          // Generic fallback
-          await signInWithRedirect(auth, provider);
+          // Fallback to redirect only for specific non-block errors or if needed
+          setError("로그인 팝업을 열 수 없습니다. 브라우저 설정을 확인해 주세요.");
+          setLoading(false);
+          // Only attempt redirect if we really want to force it
+          // await signInWithRedirect(auth, provider);
         }
       }
     } catch (err: any) {
       console.error("Google Login Error:", err);
-      setError("구글 로그인 중 오류가 발생했습니다. (브라우저 설정을 확인해 주세요)");
+      setError("구글 로그인 중 오류가 발생했습니다.");
       setLoading(false);
     }
   };
