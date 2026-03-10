@@ -128,7 +128,8 @@ export default function BarcodeScannerPage() {
       const scanType = isDynamic ? "dynamic_qr" : "barcode_scan";
 
       // 2. Determine Action based on status
-      if (currentStatus === "absent") {
+      if (currentStatus === "absent" || currentStatus === "released") {
+          // Absent (or already released - re-entry) -> Present (Drop-off)
           nextStatus = "present";
           type = "drop-off";
           msg = "등교 확인 완료";
@@ -141,23 +142,11 @@ export default function BarcodeScannerPage() {
             type: scanType,
             timestamp: serverTimestamp()
           });
-      } else if (currentStatus === "present") {
-          nextStatus = "pickup_requested";
-          type = "pickup";
-          msg = "하교 요청 접수";
-          
-          await addDoc(collection(db!, "pickup_requests"), {
-            studentId: studentDoc.id,
-            studentName: student.name,
-            institutionId,
-            status: "pending",
-            type: scanType,
-            requestTime: serverTimestamp()
-          });
-      } else if (currentStatus === "pickup_requested") {
+      } else if (currentStatus === "present" || currentStatus === "pickup_requested") {
+          // Present or Pickup Requested -> Release (Handoff)
           nextStatus = "released";
           type = "release";
-          msg = "인계 완료 (하교)";
+          msg = "하교 처리 완료 (인계)";
 
           await addDoc(collection(db!, "checkin_logs"), {
             studentId: studentDoc.id,
@@ -168,6 +157,7 @@ export default function BarcodeScannerPage() {
             timestamp: serverTimestamp()
           });
           
+          // Close all pending pickup requests for this student
           const pickupQ = query(
             collection(db!, "pickup_requests"),
             where("studentId", "==", studentDoc.id),
@@ -177,10 +167,6 @@ export default function BarcodeScannerPage() {
           for (const d of pSnap.docs) {
             await updateDoc(doc(db!, "pickup_requests", d.id), { status: "completed", completedAt: serverTimestamp() });
           }
-      } else if (currentStatus === "released") {
-          provideFeedback(false, "이미 하교 처리된 학생입니다.");
-          setIsProcessing(false);
-          return;
       }
 
       // 3. Update Student Status
